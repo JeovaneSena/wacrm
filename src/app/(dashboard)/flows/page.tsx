@@ -245,7 +245,11 @@ export default function FlowsPage() {
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-3xl bg-slate-900 text-slate-100">
+        {/* `sm:max-w-4xl` not `max-w-4xl` — shadcn's DialogContent has
+            `sm:max-w-sm` baked into its default classes. Without the
+            sm: prefix our override applies at base only and the
+            sm-scoped 384px wins at every real desktop breakpoint. */}
+        <DialogContent className="sm:max-w-4xl bg-slate-900 text-slate-100">
           <DialogHeader>
             <DialogTitle>Create a new flow</DialogTitle>
             <DialogDescription className="text-slate-400">
