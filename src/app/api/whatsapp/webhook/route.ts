@@ -204,17 +204,42 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       const phoneNumberId = value.metadata.phone_number_id
 
-      // Find user's config by phone_number_id
-      const { data: config, error: configError } = await supabaseAdmin()
+      // Find user's config by phone_number_id. `.single()` returns
+      // PGRST116 for both 0 rows AND ≥2 rows — distinguish them so
+      // operators see the real cause in logs. ≥2 rows shouldn't happen
+      // post-migration 013 (UNIQUE constraint), but a row created
+      // before the constraint, or a race, would still surface here.
+      const { data: configRows, error: configError } = await supabaseAdmin()
         .from('whatsapp_config')
         .select('*')
         .eq('phone_number_id', phoneNumberId)
-        .single()
 
-      if (configError || !config) {
+      if (configError) {
+        console.error(
+          'Error fetching whatsapp_config for phone_number_id:',
+          phoneNumberId,
+          configError
+        )
+        continue
+      }
+
+      if (!configRows || configRows.length === 0) {
         console.error('No config found for phone_number_id:', phoneNumberId)
         continue
       }
+
+      if (configRows.length > 1) {
+        console.error(
+          `Multiple configs (${configRows.length}) found for phone_number_id:`,
+          phoneNumberId,
+          '— inbound message dropped. Resolve duplicates so each number maps to a single user.',
+          'Owners:',
+          configRows.map((r: { user_id: string }) => r.user_id)
+        )
+        continue
+      }
+
+      const config = configRows[0]
 
       const decryptedAccessToken = decrypt(config.access_token)
 

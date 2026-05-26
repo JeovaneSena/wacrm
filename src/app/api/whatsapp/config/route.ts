@@ -1,7 +1,24 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
+
+// Lazy-initialised service-role client. We need it to detect a
+// phone_number_id already claimed by a *different* user — under RLS,
+// the user's own session can't see other users' rows, so the conflict
+// would be invisible without the service role.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _adminClient: any = null
+function supabaseAdmin() {
+  if (!_adminClient) {
+    _adminClient = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+  }
+  return _adminClient
+}
 
 /**
  * GET /api/whatsapp/config
@@ -127,6 +144,36 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'access_token and phone_number_id are required' },
         { status: 400 }
+      )
+    }
+
+    // Reject if another user has already claimed this phone_number_id.
+    // wacrm is single-tenant-per-WhatsApp-number — letting two users
+    // bind the same number causes the webhook's `.single()` lookup to
+    // throw PGRST116 ("multiple rows"), silently dropping every
+    // inbound message. See issue #136.
+    const { data: claimed, error: claimedError } = await supabaseAdmin()
+      .from('whatsapp_config')
+      .select('user_id')
+      .eq('phone_number_id', phone_number_id)
+      .neq('user_id', user.id)
+      .maybeSingle()
+
+    if (claimedError) {
+      console.error('Error checking phone_number_id ownership:', claimedError)
+      return NextResponse.json(
+        { error: 'Failed to validate configuration' },
+        { status: 500 }
+      )
+    }
+
+    if (claimed) {
+      return NextResponse.json(
+        {
+          error:
+            'This WhatsApp phone number is already linked to another account on this instance. Each phone number can only be connected to one wacrm user.',
+        },
+        { status: 409 }
       )
     }
 
