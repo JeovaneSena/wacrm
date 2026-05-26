@@ -9,6 +9,58 @@ Versions follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0, `MINOR` bumps cover new modules; `PATCH` bumps cover bug fixes
 and polish.
 
+## [0.2.1] — 2026-05-26
+
+Bug-fix release. Plugs a silent inbound-message drop that triggered
+when two users on the same instance saved the same WhatsApp
+`phone_number_id`.
+
+### Fixed
+
+- **Inbound WhatsApp messages no longer silently disappear** when two
+  users have claimed the same `phone_number_id`. Previously the
+  webhook used `.single()` to look up the owning config, which errors
+  `PGRST116` for both 0 rows *and* ≥2 rows — the second user's save
+  put the DB into the ≥2-row state and every inbound message was
+  dropped while the log misleadingly reported *"No config found for
+  phone_number_id"*. Three layers of fix: `POST /api/whatsapp/config`
+  now returns **409** when another user has already claimed the
+  number, the webhook lookup distinguishes 0 rows from ≥2 rows and
+  logs the conflicting `user_id`s, and a new DB constraint
+  (`UNIQUE(phone_number_id)`) prevents the bad state at the storage
+  layer. Reported in
+  [#136](https://github.com/ArnasDon/wacrm/issues/136), fixed in
+  [#143](https://github.com/ArnasDon/wacrm/pull/143).
+
+### Migration required
+
+Apply against your Supabase project before deploying this version:
+
+- `supabase/migrations/013_whatsapp_config_phone_number_id_unique.sql`
+  — adds `UNIQUE(phone_number_id)` to `whatsapp_config`. **Fails
+  loudly with a copy-pasteable resolution hint** if duplicate rows
+  already exist; auto-deduping would destroy encrypted tokens, so
+  the operator picks which row keeps the number. To check first:
+
+  ```sql
+  SELECT phone_number_id, array_agg(user_id) AS owners, count(*) AS n
+  FROM whatsapp_config
+  GROUP BY phone_number_id
+  HAVING count(*) > 1;
+  ```
+
+  If that returns rows, `DELETE` the duplicate row(s) you want to
+  drop, then re-run the migration.
+
+### Note on multi-user setups
+
+wacrm is intentionally **single-tenant per WhatsApp number**. RLS on
+`conversations`/`messages` is `auth.uid() = user_id`, so a second
+user physically cannot read messages routed to a different owner —
+two users sharing one number was never supported. If you need
+multiple humans handling the same inbox, run them under one shared
+account.
+
 ## [0.2.0] — 2026-05-22
 
 The **Flows** release. Adds a no-code, branching, button-driven WhatsApp
