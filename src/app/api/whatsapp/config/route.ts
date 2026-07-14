@@ -224,6 +224,11 @@ export async function POST(request: Request) {
     let instanceToken: string
     let instanceId: string | null = null
     let resolvedName = instance_name || 'wacrm'
+    // Adopting an already-paired instance must not force a QR re-scan:
+    // keep the live status so the frontend can skip pairing entirely.
+    let instanceStatus = 'disconnected'
+    let instanceOwner: string | null = null
+    let instanceProfileName: string | null = null
 
     try {
       if (providedToken) {
@@ -231,6 +236,9 @@ export async function POST(request: Request) {
         const instance = await getInstanceStatus({ serverUrl, instanceToken })
         instanceId = instance.id
         resolvedName = instance.name || resolvedName
+        instanceStatus = instance.status || 'disconnected'
+        instanceOwner = instance.owner || null
+        instanceProfileName = instance.profileName || null
       } else {
         const instance = await initInstance({
           serverUrl,
@@ -277,13 +285,16 @@ export async function POST(request: Request) {
       .eq('account_id', accountId)
       .maybeSingle()
 
+    const connected = instanceStatus === 'connected'
     const baseRow = {
       provider: 'uazapi',
       server_url: serverUrl,
       instance_token: encryptedInstanceToken,
       instance_id: instanceId,
       instance_name: resolvedName,
-      status: 'disconnected',
+      status: instanceStatus,
+      owner_phone: instanceOwner,
+      connected_at: connected ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
     }
 
@@ -306,7 +317,13 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, saved: true })
+    return NextResponse.json({
+      success: true,
+      saved: true,
+      status: instanceStatus,
+      owner: instanceOwner,
+      profileName: instanceProfileName,
+    })
   } catch (error) {
     console.error('Error in WhatsApp config POST:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

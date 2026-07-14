@@ -1458,6 +1458,7 @@
       "errAdminToken": "Admin token is required to create a new instance",
       "errSave": "Failed to save configuration",
       "savedScan": "Instance saved — scan the QR code to connect your WhatsApp.",
+      "savedAlreadyConnected": "Instance saved — number already connected, no QR needed.",
       "errPairing": "Failed to start pairing",
       "confirmReset": "This will disconnect and remove the WhatsApp instance from this account. Continue?",
       "errReset": "Failed to reset configuration",

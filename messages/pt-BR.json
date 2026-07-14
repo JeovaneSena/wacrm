@@ -1458,6 +1458,7 @@
       "errAdminToken": "O token de admin é obrigatório para criar uma nova instância",
       "errSave": "Falha ao salvar a configuração",
       "savedScan": "Instância salva — escaneie o QR Code para conectar seu WhatsApp.",
+      "savedAlreadyConnected": "Instância salva — número já conectado, sem necessidade de QR Code.",
       "errPairing": "Falha ao iniciar o pareamento",
       "confirmReset": "Isso vai desconectar e remover a instância do WhatsApp desta conta. Continuar?",
       "errReset": "Falha ao redefinir a configuração",

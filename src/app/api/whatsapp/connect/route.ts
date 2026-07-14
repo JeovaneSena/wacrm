@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { connectInstance } from '@/lib/whatsapp/uazapi-api'
+import { connectInstance, getInstanceStatus } from '@/lib/whatsapp/uazapi-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 
 async function resolveAccountId(
@@ -58,6 +58,23 @@ export async function POST(request: Request) {
     const phone = typeof body?.phone === 'string' && body.phone ? body.phone : undefined
 
     const instanceToken = decrypt(config.instance_token)
+
+    // Guard: never (re)start pairing for an instance that's already
+    // connected — uazapi's /instance/connect can drop a live session.
+    // A stray "refresh QR" click must be a no-op in that state.
+    const current = await getInstanceStatus({ serverUrl: config.server_url, instanceToken })
+    if (current.status === 'connected') {
+      await supabase
+        .from('whatsapp_config')
+        .update({
+          status: 'connected',
+          owner_phone: current.owner || null,
+          connected_at: new Date().toISOString(),
+        })
+        .eq('account_id', accountId)
+      return NextResponse.json({ status: 'connected', qrcode: null, paircode: null })
+    }
+
     const instance = await connectInstance({ serverUrl: config.server_url, instanceToken, phone })
 
     await supabase

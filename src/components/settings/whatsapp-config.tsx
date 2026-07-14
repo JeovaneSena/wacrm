@@ -199,6 +199,21 @@ export function WhatsAppConfig() {
         return;
       }
 
+      // An adopted token may belong to an instance that's already
+      // paired on the uazapi side — no QR needed, jump straight to
+      // connected instead of forcing a pointless re-scan.
+      if (data.status === 'connected') {
+        toast.success(t('savedAlreadyConnected'));
+        setConfig({
+          server_url: serverUrl.trim(),
+          status: 'connected',
+          owner: data.owner ?? null,
+          profileName: data.profileName ?? null,
+        });
+        setPhase('connected');
+        return;
+      }
+
       toast.success(t('savedScan'));
       setConfig({ server_url: serverUrl.trim(), status: 'disconnected', owner: null, profileName: null });
       await handleGenerateQr();
@@ -219,6 +234,12 @@ export function WhatsAppConfig() {
         toast.error(data.error || t('errPairing'));
         setPhase('error');
         setErrorMessage(data.error || t('errPairing'));
+        return;
+      }
+      // The connect route short-circuits with `connected` when the
+      // instance is already paired — no QR to render, skip polling.
+      if (data.status === 'connected') {
+        setPhase('connected');
         return;
       }
       if (data.qrcode) setQrcode(data.qrcode);
