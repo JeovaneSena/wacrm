@@ -13,15 +13,11 @@
 // Body:
 //   {
 //     "to": "+14155550123",                 // required, E.164
-//     "type": "text",                        // text|template|image|video|document|audio (default: text)
+//     "type": "text",                        // text|interactive|image|video|document|audio (default: text)
 //     "text": "Hello!",                      // text body, or media caption
 //     "media_url": "https://…/file.pdf",     // required for image/video/document/audio
 //     "filename": "invoice.pdf",             // optional, document filename
-//     "template": {                          // required when type=template
-//       "name": "order_update",
-//       "language": "en_US",
-//       "params": ["A123"] | { "body": [...] }   // array = positional body; object = structured
-//     },
+//     "interactive_payload": { ... },        // required when type=interactive (buttons/list)
 //     "reply_to_message_id": "<uuid>",       // optional, must be in the same conversation
 //     "name": "Jane Doe"                     // optional, names a newly-created contact
 //   }
@@ -60,23 +56,6 @@ export async function POST(request: Request) {
 
     const type = typeof body.type === 'string' ? body.type : 'text';
 
-    // Unpack the optional `template` object into the flat params the
-    // send core expects. `params` as an array → legacy positional body
-    // params; as an object → structured header/body/button params.
-    const template =
-      body.template && typeof body.template === 'object'
-        ? (body.template as Record<string, unknown>)
-        : null;
-    const templateParams = Array.isArray(template?.params)
-      ? (template.params as unknown[]).filter(
-          (p): p is string => typeof p === 'string'
-        )
-      : undefined;
-    const templateMessageParams =
-      template?.params && !Array.isArray(template.params)
-        ? template.params
-        : undefined;
-
     // Validate the message shape BEFORE resolveConversationByPhone
     // finds-or-creates a contact + conversation, so a bad payload 400s
     // without leaving an orphan contact/conversation behind.
@@ -91,7 +70,6 @@ export async function POST(request: Request) {
       messageType: type,
       contentText: typeof body.text === 'string' ? body.text : null,
       mediaUrl: typeof body.media_url === 'string' ? body.media_url : null,
-      templateName: typeof template?.name === 'string' ? template.name : null,
       interactivePayload,
     });
 
@@ -114,11 +92,6 @@ export async function POST(request: Request) {
         contentText: typeof body.text === 'string' ? body.text : null,
         mediaUrl: typeof body.media_url === 'string' ? body.media_url : null,
         filename: typeof body.filename === 'string' ? body.filename : null,
-        templateName: typeof template?.name === 'string' ? template.name : null,
-        templateLanguage:
-          typeof template?.language === 'string' ? template.language : null,
-        templateParams,
-        templateMessageParams,
         interactivePayload,
         replyToMessageId:
           typeof body.reply_to_message_id === 'string'

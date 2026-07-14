@@ -6,7 +6,7 @@
 // Given a conversation and message params, this:
 //   1. validates the params for the message type,
 //   2. loads the conversation + contact + WhatsApp config,
-//   3. sends to Meta (with phone-variant retry + contact auto-fix),
+//   3. sends via the account's uazapi instance,
 //   4. persists the message + updates the conversation,
 //   5. pauses any active Flow run for the contact (agent stepped in).
 //
@@ -14,41 +14,30 @@
 // `accountId` and throws `SendMessageError` on failure. The callers
 // own auth, rate-limiting, body parsing, and mapping the error to
 // their respective response shapes (internal `{ error }` vs the v1
-// envelope). Behaviour is identical to the original inline route —
-// this is a straight extraction so the public endpoint can reuse it
-// without duplicating ~250 lines of Meta plumbing.
+// envelope).
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
   sendTextMessage,
-  sendTemplateMessage,
   sendMediaMessage,
-  sendInteractiveButtons,
-  sendInteractiveList,
+  sendMenuMessage,
   type MediaKind,
-} from '@/lib/whatsapp/meta-api';
+} from '@/lib/whatsapp/uazapi-api';
 import {
   validateInteractivePayload,
   interactivePayloadPreviewText,
+  interactivePayloadToMenu,
   type InteractiveMessagePayload,
 } from '@/lib/whatsapp/interactive';
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
-import {
-  sanitizePhoneForMeta,
-  isValidE164,
-  phoneVariants,
-  isRecipientNotAllowedError,
-} from '@/lib/whatsapp/phone-utils';
-import type { MessageTemplate } from '@/types';
-import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
+import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 
 export const MEDIA_KINDS = ['image', 'video', 'document', 'audio'] as const;
 export const VALID_MESSAGE_TYPES = [
   'text',
-  'template',
   'interactive',
   ...MEDIA_KINDS,
 ] as const;
@@ -75,21 +64,22 @@ export interface SendMessageParams {
   contentText?: string | null;
   mediaUrl?: string | null;
   filename?: string | null;
-  templateName?: string | null;
-  templateLanguage?: string | null;
-  /** Legacy positional body params (only used if messageParams.body unset). */
-  templateParams?: string[];
-  /** Structured template params (header/body/buttons). */
-  templateMessageParams?: unknown;
   /** Structured payload for `messageType === 'interactive'`. */
   interactivePayload?: InteractiveMessagePayload | null;
   replyToMessageId?: string | null;
+  /**
+   * The human agent sending this message (dashboard composer only —
+   * omitted for public-API sends, which have no signed-in user).
+   * Persisted as `messages.sender_id` so the dashboard's per-agent
+   * SLA/volume breakdown has someone to attribute the reply to.
+   */
+  senderId?: string | null;
 }
 
 export interface SendMessageResult {
   /** Our `messages.id` (the persisted row). */
   messageId: string;
-  /** Meta's `wamid` for the delivered message. */
+  /** uazapi's message id for the delivered message. */
   whatsappMessageId: string;
 }
 
@@ -112,11 +102,9 @@ export function validateSendMessageParams(params: {
   messageType: string;
   contentText?: string | null;
   mediaUrl?: string | null;
-  templateName?: string | null;
   interactivePayload?: InteractiveMessagePayload | null;
 }): void {
-  const { messageType, contentText, mediaUrl, templateName, interactivePayload } =
-    params;
+  const { messageType, contentText, mediaUrl, interactivePayload } = params;
 
   if (!messageType) {
     throw new SendMessageError('bad_request', 'message_type is required', 400);
@@ -140,16 +128,8 @@ export function validateSendMessageParams(params: {
     );
   }
 
-  if (messageType === 'template' && !templateName) {
-    throw new SendMessageError(
-      'bad_request',
-      'template_name is required for template messages',
-      400
-    );
-  }
-
-  // Interactive: validate the full structured payload against Meta's
-  // limits up front so a bad payload 400s before we touch Meta.
+  // Interactive: validate the full structured payload up front so a
+  // bad payload 400s before we touch the gateway.
   if (messageType === 'interactive') {
     const result = validateInteractivePayload(interactivePayload);
     if (!result.ok) {
@@ -165,7 +145,7 @@ export function validateSendMessageParams(params: {
     );
   }
 
-  // Meta caps media captions at 1024 chars (audio carries none).
+  // WhatsApp caps media captions at 1024 chars (audio carries none).
   if (
     isMediaKind &&
     messageType !== 'audio' &&
@@ -191,12 +171,9 @@ export async function sendMessageToConversation(
     contentText,
     mediaUrl,
     filename,
-    templateName,
-    templateLanguage,
-    templateParams,
-    templateMessageParams,
     interactivePayload,
     replyToMessageId,
+    senderId,
   } = params;
 
   if (!conversationId) {
@@ -211,7 +188,6 @@ export async function sendMessageToConversation(
     messageType,
     contentText,
     mediaUrl,
-    templateName,
     interactivePayload,
   });
 
@@ -254,7 +230,7 @@ export async function sendMessageToConversation(
     .eq('account_id', accountId)
     .single();
 
-  if (configError || !config) {
+  if (configError || !config || !config.instance_token) {
     throw new SendMessageError(
       'whatsapp_not_configured',
       'WhatsApp not configured. Please set up your WhatsApp integration first.',
@@ -262,25 +238,25 @@ export async function sendMessageToConversation(
     );
   }
 
-  const accessToken = decrypt(config.access_token);
+  const instanceToken = decrypt(config.instance_token);
 
   // Self-heal legacy CBC ciphertexts. Fire-and-forget; idempotent.
-  if (isLegacyFormat(config.access_token)) {
+  if (isLegacyFormat(config.instance_token)) {
     void db
       .from('whatsapp_config')
-      .update({ access_token: encrypt(accessToken) })
+      .update({ instance_token: encrypt(instanceToken) })
       .eq('id', config.id)
       .then(({ error }: { error: { message: string } | null }) => {
         if (error) {
           console.warn(
-            '[send-message] access_token GCM upgrade failed:',
+            '[send-message] instance_token GCM upgrade failed:',
             error.message
           );
         }
       });
   }
 
-  // Resolve the reply target to its Meta message_id. The parent must
+  // Resolve the reply target to its uazapi message id. The parent must
   // belong to this same conversation — otherwise a caller could quote
   // messages they can't see by guessing UUIDs.
   let contextMessageId: string | undefined;
@@ -301,143 +277,60 @@ export async function sendMessageToConversation(
     }
     if (!parent.message_id) {
       console.warn(
-        '[send-message] reply target has no Meta message_id; sending without context'
+        '[send-message] reply target has no uazapi message_id; sending without context'
       );
     } else {
       contextMessageId = parent.message_id;
     }
   }
 
-  // Template row (for header + button components). isMessageTemplate
-  // guards against a malformed local row crashing the send-builder.
-  let templateRow: MessageTemplate | null = null;
-  if (messageType === 'template' && templateName) {
-    const { data } = await db
-      .from('message_templates')
-      .select('*')
-      .eq('account_id', accountId)
-      .eq('name', templateName)
-      .eq('language', templateLanguage || 'en_US')
-      .maybeSingle();
-    if (data && !isMessageTemplate(data)) {
-      throw new SendMessageError(
-        'template_malformed',
-        'Template row is malformed locally — run "Sync from Meta" in Settings to repair it.',
-        500
-      );
-    }
-    templateRow = data ?? null;
-  }
-
   const attempt = async (phone: string): Promise<string> => {
-    if (messageType === 'template') {
-      const result = await sendTemplateMessage({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
+    if (messageType === 'interactive') {
+      const menu = interactivePayloadToMenu(interactivePayload!);
+      const result = await sendMenuMessage({
+        serverUrl: config.server_url,
+        instanceToken,
         to: phone,
-        templateName: templateName!,
-        language: templateLanguage || 'en_US',
-        template: templateRow ?? undefined,
-        messageParams: templateMessageParams ?? undefined,
-        params: templateParams || [],
-        contextMessageId,
+        type: menu.type,
+        text: menu.text,
+        footerText: menu.footerText,
+        listButton: menu.listButton,
+        choices: menu.choices,
+        replyId: contextMessageId,
       });
       return result.messageId;
     }
     if (isMediaKind) {
       const result = await sendMediaMessage({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
+        serverUrl: config.server_url,
+        instanceToken,
         to: phone,
         kind: messageType as MediaKind,
         link: mediaUrl!,
         caption: contentText || undefined,
         filename: filename || undefined,
-        contextMessageId,
-      });
-      return result.messageId;
-    }
-    if (messageType === 'interactive') {
-      const p = interactivePayload!;
-      if (p.kind === 'buttons') {
-        const result = await sendInteractiveButtons({
-          phoneNumberId: config.phone_number_id,
-          accessToken,
-          to: phone,
-          bodyText: p.body,
-          headerText: p.header || undefined,
-          footerText: p.footer || undefined,
-          buttons: p.buttons,
-          contextMessageId,
-        });
-        return result.messageId;
-      }
-      const result = await sendInteractiveList({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
-        to: phone,
-        bodyText: p.body,
-        buttonLabel: p.button_label,
-        headerText: p.header || undefined,
-        footerText: p.footer || undefined,
-        sections: p.sections,
-        contextMessageId,
+        replyId: contextMessageId,
       });
       return result.messageId;
     }
     const result = await sendTextMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
+      serverUrl: config.server_url,
+      instanceToken,
       to: phone,
       text: contentText!,
-      contextMessageId,
+      replyId: contextMessageId,
     });
     return result.messageId;
   };
 
-  // Send via Meta — retry across phone-number variants if Meta rejects
-  // with "recipient not in allowed list"; persist a working variant
-  // back to the contact so the next send goes straight through.
   let waMessageId = '';
-  let workingPhone = sanitizedPhone;
   try {
-    const variants = phoneVariants(sanitizedPhone);
-    let lastError: unknown = null;
-
-    for (const variant of variants) {
-      try {
-        waMessageId = await attempt(variant);
-        workingPhone = variant;
-        lastError = null;
-        break;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (!isRecipientNotAllowedError(message)) {
-          throw err;
-        }
-        lastError = err;
-        console.warn(
-          `[send-message] variant "${variant}" rejected by Meta, trying next…`
-        );
-      }
-    }
-
-    if (lastError) throw lastError;
+    waMessageId = await attempt(sanitizedPhone);
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : 'Unknown Meta API error';
-    console.error('[send-message] Meta send failed for all variants:', message);
-    throw new SendMessageError('meta_error', `Meta API error: ${message}`, 502);
-  }
-
-  if (workingPhone !== sanitizedPhone) {
-    console.log(
-      `[send-message] Auto-corrected contact phone: ${sanitizedPhone} → ${workingPhone}`
-    );
-    await db
-      .from('contacts')
-      .update({ phone: workingPhone })
-      .eq('id', contact.id);
+      err instanceof Error ? err.message : 'Unknown uazapi API error';
+    console.error('[send-message] uazapi send failed:', message);
+    throw new SendMessageError('uazapi_error', `uazapi API error: ${message}`, 502);
   }
 
   // Persist the sent message. Field names MUST match the messages
@@ -453,10 +346,10 @@ export async function sendMessageToConversation(
     .insert({
       conversation_id: conversationId,
       sender_type: 'agent',
+      sender_id: senderId || null,
       content_type: messageType,
       content_text: interactiveBody ?? contentText ?? null,
       media_url: mediaUrl || null,
-      template_name: templateName || null,
       interactive_payload:
         messageType === 'interactive' ? interactivePayload : null,
       message_id: waMessageId,
@@ -470,7 +363,7 @@ export async function sendMessageToConversation(
     console.error('[send-message] error inserting sent message:', msgError);
     throw new SendMessageError(
       'db_error',
-      `Message sent to Meta but failed to save to DB: ${msgError.message}`,
+      `Message sent but failed to save to DB: ${msgError.message}`,
       500
     );
   }

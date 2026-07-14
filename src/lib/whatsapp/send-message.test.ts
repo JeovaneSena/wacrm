@@ -57,14 +57,6 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
     );
   });
 
-  it('requires template_name for template messages', async () => {
-    await expectSendError(
-      { ...base, messageType: 'template' },
-      400,
-      /template_name is required/
-    );
-  });
-
   it('requires media_url for media kinds', async () => {
     for (const kind of ['image', 'video', 'document', 'audio']) {
       await expectSendError(

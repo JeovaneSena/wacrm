@@ -9,19 +9,24 @@ import {
   UserPlus,
   DollarSign,
   Send,
+  Hourglass,
 } from 'lucide-react'
 
 import {
   loadActivity,
+  loadAgentPerformance,
   loadConversationsSeries,
   loadMetrics,
+  loadPendingQueue,
   loadPipelineDonut,
   loadResponseTime,
 } from '@/lib/dashboard/queries'
 import type {
   ActivityItem,
+  AgentPerformanceRow,
   ConversationsSeriesPoint,
   MetricsBundle,
+  PendingQueueSummary,
   PipelineDonutData,
   ResponseTimeSummary,
 } from '@/lib/dashboard/types'
@@ -32,6 +37,7 @@ import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
+import { AgentPerformanceTable } from '@/components/dashboard/agent-performance-table'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 
 import { useTranslations } from 'next-intl'
@@ -40,9 +46,16 @@ type RangeDays = 7 | 30 | 90
 
 export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
-  const { defaultCurrency } = useAuth()
+  const { defaultCurrency, isAdmin, isOwner } = useAuth()
+  const canViewAgentPerformance = isAdmin || isOwner
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
+
+  const [pendingQueue, setPendingQueue] = useState<PendingQueueSummary | null>(null)
+  const [pendingQueueLoading, setPendingQueueLoading] = useState(true)
+
+  const [agentPerformance, setAgentPerformance] = useState<AgentPerformanceRow[] | null>(null)
+  const [agentPerformanceLoading, setAgentPerformanceLoading] = useState(true)
 
   const [range, setRange] = useState<RangeDays>(30)
   // Keep a cache per range so switching tabs doesn't re-fetch what we
@@ -97,7 +110,21 @@ export default function DashboardPage() {
       .then((a) => setActivity(a))
       .catch((err) => console.error('[dashboard] activity failed:', err))
       .finally(() => setActivityLoading(false))
-  }, [])
+
+    void loadPendingQueue(db)
+      .then((q) => setPendingQueue(q))
+      .catch((err) => console.error('[dashboard] pending queue failed:', err))
+      .finally(() => setPendingQueueLoading(false))
+
+    if (canViewAgentPerformance) {
+      void loadAgentPerformance(db)
+        .then((a) => setAgentPerformance(a))
+        .catch((err) => console.error('[dashboard] agent performance failed:', err))
+        .finally(() => setAgentPerformanceLoading(false))
+    } else {
+      void Promise.resolve().then(() => setAgentPerformanceLoading(false))
+    }
+  }, [canViewAgentPerformance])
 
   useEffect(() => {
     loadAll()
@@ -132,7 +159,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Metric cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {metricsLoading || !metrics ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
@@ -186,6 +213,20 @@ export default function DashboardPage() {
             />
           </>
         )}
+        {pendingQueueLoading || !pendingQueue ? (
+          <SkeletonCard />
+        ) : (
+          <MetricCard
+            title={t('pendingQueue')}
+            value={pendingQueue.count.toLocaleString()}
+            icon={Hourglass}
+            subtitle={
+              pendingQueue.oldestWaitMinutes != null
+                ? t('pendingQueueOldest', { time: fmtWait(pendingQueue.oldestWaitMinutes) })
+                : undefined
+            }
+          />
+        )}
       </div>
 
       {/* Quick actions */}
@@ -219,6 +260,11 @@ export default function DashboardPage() {
       {/* Response time */}
       <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
 
+      {/* Per-agent performance — admin/owner only */}
+      {canViewAgentPerformance && (
+        <AgentPerformanceTable data={agentPerformance} loading={agentPerformanceLoading} />
+      )}
+
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />
     </div>
@@ -231,4 +277,9 @@ function deltaLabel(delta: number, suffix: string, noChangeLabel: string): strin
   if (delta === 0) return noChangeLabel
   const sign = delta > 0 ? '+' : ''
   return `${sign}${delta.toLocaleString()} ${suffix}`
+}
+
+function fmtWait(mins: number): string {
+  if (mins < 60) return `${Math.round(mins)}m`
+  return `${(mins / 60).toFixed(1)}h`
 }

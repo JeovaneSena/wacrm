@@ -170,7 +170,7 @@ export function MembersTab() {
       }
     } catch (err) {
       console.error('[MembersTab] load error:', err);
-      toast.error('Could not reach the server');
+      toast.error(t('errServer'));
     } finally {
       setLoading(false);
     }
@@ -222,7 +222,7 @@ export function MembersTab() {
         ),
       );
       console.error('[MembersTab] role change error:', err);
-      toast.error('Could not reach the server');
+      toast.error(t('errServer'));
     } finally {
       setPendingMemberAction(null);
     }
@@ -248,7 +248,7 @@ export function MembersTab() {
       setRemovingMember(null);
     } catch (err) {
       console.error('[MembersTab] remove error:', err);
-      toast.error('Could not reach the server');
+      toast.error(t('errServer'));
     } finally {
       setPendingMemberAction(null);
     }
@@ -268,7 +268,7 @@ export function MembersTab() {
       setInvitations((prev) => prev.filter((i) => i.id !== invite.id));
     } catch (err) {
       console.error('[MembersTab] revoke error:', err);
-      toast.error('Could not reach the server');
+      toast.error(t('errServer'));
     }
   }
 

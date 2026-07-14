@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   validateInteractivePayload,
   interactivePayloadPreviewText,
+  interactivePayloadToMenu,
   type InteractiveButtonsPayload,
   type InteractiveListPayload,
 } from './interactive'
@@ -138,5 +139,35 @@ describe('interactivePayloadPreviewText', () => {
   it('falls back when body is blank', () => {
     expect(interactivePayloadPreviewText({ ...validButtons, body: '   ' })).toBe('[buttons]')
     expect(interactivePayloadPreviewText({ ...validList, body: '' })).toBe('[list]')
+  })
+})
+
+describe('interactivePayloadToMenu', () => {
+  it('converts buttons to uazapi button choices', () => {
+    const menu = interactivePayloadToMenu(validButtons)
+    expect(menu.type).toBe('button')
+    expect(menu.text).toBe('Choose an option')
+    expect(menu.choices).toEqual(['Yes|yes', 'No|no'])
+  })
+
+  it('folds the header into the text as a bold first line', () => {
+    const menu = interactivePayloadToMenu({ ...validButtons, header: 'Support' })
+    expect(menu.text).toBe('*Support*\n\nChoose an option')
+  })
+
+  it('converts lists to section-prefixed choices with descriptions', () => {
+    const menu = interactivePayloadToMenu(validList)
+    expect(menu.type).toBe('list')
+    expect(menu.listButton).toBe('View menu')
+    expect(menu.choices).toEqual([
+      '[Services]',
+      'SEO|Search optimization|seo',
+      'Ads|ads',
+    ])
+  })
+
+  it('passes the footer through', () => {
+    const menu = interactivePayloadToMenu({ ...validButtons, footer: 'Reply anytime' })
+    expect(menu.footerText).toBe('Reply anytime')
   })
 })

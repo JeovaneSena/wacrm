@@ -36,15 +36,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Per-user rate limit. Bucket key is scoped to this route so
-    // `/broadcast` has an independent budget.
+    // Per-user rate limit.
     const limit = checkRateLimit(`send:${user.id}`, RATE_LIMITS.send)
     if (!limit.success) {
       return rateLimitResponse(limit)
     }
 
     // Resolve the caller's account_id. Every downstream lookup
-    // (conversation, whatsapp_config, message_templates) is account-
+    // (conversation, whatsapp_config) is account-
     // scoped post-multi-user, so the previous `user_id` filters
     // returned nothing for teammates who didn't author the row.
     const { data: profile } = await supabase
@@ -64,17 +63,13 @@ export async function POST(request: Request) {
     const {
       // `conversation_id` targets an existing thread (inbox). `contact_id`
       // lets a caller initiate from a contact that may have no conversation
-      // yet (Contact detail → Send template) — we find-or-create one below.
+      // yet — we find-or-create one below.
       conversation_id: conversationIdInput,
       contact_id,
       message_type,
       content_text,
       media_url,
       filename,
-      template_name,
-      template_language,
-      template_params,
-      template_message_params,
       interactive_payload,
       reply_to_message_id,
     } = body
@@ -97,7 +92,6 @@ export async function POST(request: Request) {
         messageType: message_type,
         contentText: content_text,
         mediaUrl: media_url,
-        templateName: template_name,
         interactivePayload: interactive_payload,
       })
     } catch (err) {
@@ -109,7 +103,7 @@ export async function POST(request: Request) {
 
     // Resolve the target conversation. With `conversation_id` we load the
     // existing thread; with `contact_id` we find-or-create one for the
-    // contact so a business-initiated template send (Contact detail view)
+    // contact so a business-initiated send (Contact detail view)
     // reuses the shared send core below.
     let conversationId: string | null = null
 
@@ -178,12 +172,9 @@ export async function POST(request: Request) {
         contentText: content_text,
         mediaUrl: media_url,
         filename,
-        templateName: template_name,
-        templateLanguage: template_language,
-        templateParams: template_params,
-        templateMessageParams: template_message_params,
         interactivePayload: interactive_payload,
         replyToMessageId: reply_to_message_id,
+        senderId: user.id,
       })
 
       return NextResponse.json({

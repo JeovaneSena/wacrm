@@ -5,7 +5,7 @@
 // This is the machine-to-machine counterpart of `getCurrentAccount`
 // (cookie session → account). Where the dashboard authenticates a
 // human via Supabase cookies, the public API authenticates a caller
-// via `Authorization: Bearer wacrm_live_…`.
+// via `Authorization: Bearer senacrm_live_…`.
 //
 // Calling convention — every `/api/v1` route does:
 //

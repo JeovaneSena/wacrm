@@ -23,7 +23,7 @@
  * `node_key`; trigger-scoped use `scope: 'trigger'`.
  */
 
-import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
+import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/interactive";
 
 export interface ValidationIssue {
   severity: "error" | "warning";

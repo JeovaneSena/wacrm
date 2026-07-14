@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 import { Bot, RotateCcw, Send, Loader2, UserCircle2, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ interface Turn {
 }
 
 export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
+  const tr = useTranslations('Agents.playground');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -43,9 +45,9 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.code === 'ai_not_configured') {
-          toast.error('No agent configured yet — finish Setup first.');
+          toast.error(tr('errNotConfigured'));
         } else {
-          toast.error(data.error ?? "Couldn't get a reply.");
+          toast.error(data.error ?? tr('errNoReply'));
         }
         // Roll the unsent user turn back so the transcript stays clean.
         setTurns(turns);
@@ -64,7 +66,7 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
         },
       ]);
     } catch {
-      toast.error("Couldn't reach the agent.");
+      toast.error(tr('errUnreachable'));
       setTurns(turns);
       setInput(text);
     } finally {
@@ -85,9 +87,9 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium text-foreground">Playground</span>
+          <span className="text-sm font-medium text-foreground">{tr('title')}</span>
           <span className="text-xs text-muted-foreground">
-            — test replies as if you were a customer
+            {tr('subtitle')}
           </span>
         </div>
         <Button
@@ -97,7 +99,7 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
           disabled={turns.length === 0 || sending}
           className="text-muted-foreground"
         >
-          <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset
+          <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> {tr('reset')}
         </Button>
       </div>
 
@@ -106,11 +108,8 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
         {turns.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
             <Bot className="mb-2 h-8 w-8 text-muted-foreground/60" />
-            <p>Send a message to see how your agent would reply.</p>
-            <p className="mt-1 text-xs">
-              It uses your knowledge base and behaves exactly like the
-              auto-reply bot — including handoff.
-            </p>
+            <p>{tr('emptyTitle')}</p>
+            <p className="mt-1 text-xs">{tr('emptyHint')}</p>
             {onGoToSetup && (
               <Button
                 variant="link"
@@ -118,7 +117,7 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
                 onClick={onGoToSetup}
                 className="mt-1 h-auto p-0 text-xs"
               >
-                Not set up yet? Go to Setup <ArrowRight className="ml-1 h-3 w-3" />
+                {tr('goSetup')} <ArrowRight className="ml-1 h-3 w-3" />
               </Button>
             )}
           </div>
@@ -152,7 +151,7 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
                   )}
                 >
                   <UserCircle2 className="h-3.5 w-3.5" />
-                  Would hand off to a human here
+                  {tr('handoff')}
                 </p>
               )}
             </div>
@@ -165,7 +164,7 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
         {sending && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Bot className="h-5 w-5 text-primary" />
-            <Loader2 className="h-4 w-4 animate-spin" /> Thinking…
+            <Loader2 className="h-4 w-4 animate-spin" /> {tr('thinking')}
           </div>
         )}
       </div>
@@ -176,7 +175,7 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type a customer message…"
+          placeholder={tr('inputPlaceholder')}
           rows={1}
           className="flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none focus:border-primary/50"
         />

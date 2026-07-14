@@ -13,13 +13,15 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
+import { NewConversationDialog } from "@/components/inbox/new-conversation-dialog";
+import { useCan } from "@/hooks/use-can";
 import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Remembers the agent's show/hide choice for the desktop contact panel
 // across reloads and sessions (device-scoped, like the theme prefs).
-const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
+const CONTACT_PANEL_STORAGE_KEY = "senacrm:inbox:contact-panel-open";
 
 export default function InboxPage() {
   const t = useTranslations("Inbox.page");
@@ -477,6 +479,21 @@ export default function InboxPage() {
     [activeConversation?.id, router]
   );
 
+  // "New conversation" dialog — opens (find-or-creates) a thread for a
+  // picked contact, then routes to it via the ?c= deep-link. Clearing
+  // the auto-select ref lets the deep-link effect fire even when the
+  // target is a conversation the user had previously selected.
+  const [newConvOpen, setNewConvOpen] = useState(false);
+  const canSend = useCan("send-messages");
+  const handleOpenNewConversation = useCallback(
+    (conversationId: string) => {
+      autoSelectedForDeepLinkRef.current = null;
+      setResyncToken((n) => n + 1);
+      router.replace(`/inbox?c=${conversationId}`, { scroll: false });
+    },
+    [router],
+  );
+
   // Mobile "back" — deselect the conversation so the list pane comes
   // back. Also clears the ?c= param so a refresh lands on the list
   // instead of re-opening the thread the user just backed out of.
@@ -579,6 +596,7 @@ export default function InboxPage() {
             conversations={conversations}
             onConversationsLoaded={handleConversationsLoaded}
             resyncToken={resyncToken}
+            onNewConversation={canSend ? () => setNewConvOpen(true) : undefined}
           />
         </div>
 
@@ -625,6 +643,12 @@ export default function InboxPage() {
           </div>
         )}
       </div>
+
+      <NewConversationDialog
+        open={newConvOpen}
+        onOpenChange={setNewConvOpen}
+        onOpenConversation={handleOpenNewConversation}
+      />
     </div>
   );
 }

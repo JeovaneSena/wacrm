@@ -128,10 +128,14 @@ function getBaseUrl(request: Request): string {
     );
   } else {
     console.warn(
-      "[POST /api/account/invitations] could not derive base URL from request; falling back to marketing domain",
+      "[POST /api/account/invitations] could not derive base URL from request; set NEXT_PUBLIC_SITE_URL to control invite link hosts",
     );
   }
-  return "https://wacrm.tech";
+  // Last-resort fallback — only hit when there's no Host header at all
+  // (essentially impossible from a real browser) and NEXT_PUBLIC_SITE_URL
+  // is unset. Operators should set that env var; localhost keeps the
+  // link from pointing at an unrelated domain in that edge case.
+  return "http://localhost:3000";
 }
 
 const MAX_LABEL_LEN = 80;

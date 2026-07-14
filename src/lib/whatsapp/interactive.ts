@@ -21,7 +21,24 @@
 // mid-conversation.
 // ============================================================
 
-import { INTERACTIVE_LIMITS } from './meta-api'
+/**
+ * Hard limits for interactive messages, enforced at build/save time so
+ * violations fail as a developer-facing error rather than a customer-
+ * facing one. Inherited from WhatsApp's own UI constraints (3 buttons,
+ * 10 list rows, title lengths) — they still apply over uazapi since
+ * the rendering happens in the same WhatsApp client.
+ */
+export const INTERACTIVE_LIMITS = {
+  maxButtons: 3,
+  buttonTitleMaxLength: 20,
+  maxListSections: 10,
+  maxListRowsTotal: 10,
+  listRowTitleMaxLength: 24,
+  listRowDescriptionMaxLength: 72,
+  bodyMaxLength: 1024,
+  footerMaxLength: 60,
+  headerTextMaxLength: 60,
+} as const
 
 export interface InteractiveButton {
   /** Stable id echoed back in the webhook when tapped. */
@@ -224,6 +241,60 @@ export function validateInteractivePayload(
   }
 
   return fail('Interactive message must be reply buttons or a list.')
+}
+
+export interface UazapiMenuShape {
+  type: 'button' | 'list'
+  text: string
+  footerText?: string
+  listButton?: string
+  choices: string[]
+}
+
+/**
+ * Convert an InteractiveMessagePayload into uazapi's /send/menu shape.
+ *
+ * uazapi's menu has no separate header field, so a header is folded
+ * into the body as a leading bold line (WhatsApp renders *text* bold).
+ * Choice encoding (confirmed against uazapi's Postman collection):
+ *   buttons:   "Title|id"
+ *   list rows: "Title|description|id" (or "Title|id" without one),
+ *   sections:  a "[Section title]" entry opens a new section.
+ */
+export function interactivePayloadToMenu(
+  payload: InteractiveMessagePayload,
+): UazapiMenuShape {
+  const text = payload.header
+    ? `*${payload.header}*\n\n${payload.body}`
+    : payload.body
+
+  if (payload.kind === 'buttons') {
+    return {
+      type: 'button',
+      text,
+      footerText: payload.footer,
+      choices: payload.buttons.map((b) => `${b.title}|${b.id}`),
+    }
+  }
+
+  const choices: string[] = []
+  for (const section of payload.sections) {
+    if (section.title) choices.push(`[${section.title}]`)
+    for (const row of section.rows) {
+      choices.push(
+        row.description
+          ? `${row.title}|${row.description}|${row.id}`
+          : `${row.title}|${row.id}`,
+      )
+    }
+  }
+  return {
+    type: 'list',
+    text,
+    footerText: payload.footer,
+    listButton: payload.button_label,
+    choices,
+  }
 }
 
 /**

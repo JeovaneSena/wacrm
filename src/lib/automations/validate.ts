@@ -62,18 +62,13 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
     case 'send_buttons':
     case 'send_list': {
       // The whole step_config IS the interactive payload; validate it
-      // against Meta's limits (same check the engine runs before send).
+      // against WhatsApp's limits (same check the engine runs before send).
       const result = validateInteractivePayload(c)
       if (!result.ok) {
         issues.push({ path: `${path}.interactive`, message: result.error })
       }
       break
     }
-    case 'send_template':
-      if (!nonEmpty(c.template_name)) {
-        issues.push({ path: `${path}.template_name`, message: 'template name is required' })
-      }
-      break
     case 'add_tag':
     case 'remove_tag':
       if (!nonEmpty(c.tag_id)) {

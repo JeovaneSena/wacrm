@@ -32,13 +32,11 @@ describe("validateStepsForActivation", () => {
   it("flags every required field that is missing", () => {
     const issues = validateStepsForActivation([
       { step_type: "send_message", step_config: { text: "  " } },
-      { step_type: "send_template", step_config: {} },
       { step_type: "add_tag", step_config: { tag_id: "" } },
     ]);
     expect(issues.map((i) => i.path)).toEqual([
       "steps[0].text",
-      "steps[1].template_name",
-      "steps[2].tag_id",
+      "steps[1].tag_id",
     ]);
   });
 

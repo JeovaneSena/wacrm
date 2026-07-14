@@ -46,13 +46,37 @@ export interface ResponseTimeSummary {
   buckets: ResponseTimeBucket[]
   thisWeekAvg: number | null
   lastWeekAvg: number | null
+  /** % of human-response samples (last 14 days) at/under the SLA target. Null if no samples. */
+  pctWithinTarget: number | null
+  /** Total human-response samples the summary (and pctWithinTarget) is based on. */
+  sampleCount: number
+}
+
+export interface AgentPerformanceRow {
+  agentId: string
+  name: string
+  avatarUrl: string | null
+  /** Distinct conversations this agent sent at least one message in (last 14 days). */
+  conversationCount: number
+  /** Total messages this agent sent (last 14 days). */
+  messageCount: number
+  /** Average first-response time in minutes, this agent's replies only. Null if no samples. */
+  avgResponseMinutes: number | null
+  /** % of this agent's first-response samples at/under the SLA target. Null if no samples. */
+  pctWithinTarget: number | null
+  sampleCount: number
+}
+
+export interface PendingQueueSummary {
+  /** Conversations whose most recent message is from the customer (awaiting a reply). */
+  count: number
+  /** Minutes since the oldest awaiting-reply conversation's last customer message. Null if count is 0. */
+  oldestWaitMinutes: number | null
 }
 
 export type ActivityKind =
   | 'message'
-  | 'deal'
-  | 'broadcast'
-  | 'automation'
+  | 'deal'  | 'automation'
   | 'contact'
 
 export interface ActivityItem {

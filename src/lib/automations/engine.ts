@@ -9,7 +9,6 @@ import type {
   SendMessageStepConfig,
   SendButtonsStepConfig,
   SendListStepConfig,
-  SendTemplateStepConfig,
   SendWebhookStepConfig,
   TagStepConfig,
   UpdateContactFieldStepConfig,
@@ -18,7 +17,7 @@ import type {
   AssignConversationStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
-import { engineSendText, engineSendTemplate, engineSendInteractive } from './meta-send'
+import { engineSendText, engineSendInteractive } from './meta-send'
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
 
@@ -381,42 +380,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         contactId: args.contactId,
         payload,
       })
-      return `interactive sent via Meta (${whatsapp_message_id})`
-    }
-
-    case 'send_template': {
-      const cfg = step.step_config as SendTemplateStepConfig
-      if (!args.contactId) throw new Error('send_template needs a contact')
-      if (!cfg.template_name) throw new Error('send_template needs template_name')
-      const conversationId = await resolveConversationId(args)
-      // Meta templates use positional {{1}}, {{2}}, … placeholders, so
-      // we MUST emit params in strict numeric order. Lexicographic sort
-      // of "1", "2", …, "10" yields "1", "10", "2", … which silently
-      // scrambles every template with ≥10 variables.
-      const params = cfg.variables
-        ? Object.keys(cfg.variables)
-            .sort((a, b) => {
-              const na = Number(a)
-              const nb = Number(b)
-              const aNum = Number.isFinite(na)
-              const bNum = Number.isFinite(nb)
-              if (aNum && bNum) return na - nb
-              if (aNum) return -1
-              if (bNum) return 1
-              return a.localeCompare(b)
-            })
-            .map((k) => String(cfg.variables![k]))
-        : []
-      const { whatsapp_message_id } = await engineSendTemplate({
-        accountId: args.automation.account_id,
-        userId: args.automation.user_id,
-        conversationId,
-        contactId: args.contactId,
-        templateName: cfg.template_name,
-        language: cfg.language,
-        params,
-      })
-      return `template sent via Meta (${whatsapp_message_id})`
+      return `interactive sent (${whatsapp_message_id})`
     }
 
     case 'add_tag': {

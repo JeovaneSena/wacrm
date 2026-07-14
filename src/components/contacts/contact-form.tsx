@@ -26,12 +26,28 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
+const COUNTRY_CODE = '55';
+
+/** Strip a leading `+55`/`55` so an already-saved full number displays
+ *  as just the local DDD+number the input now expects. Numbers that
+ *  don't match the BR pattern are left as-is rather than mangled. */
+function stripCountryCode(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith(COUNTRY_CODE) && digits.length > 11) {
+    return digits.slice(COUNTRY_CODE.length);
+  }
+  return digits;
+}
+
 interface ContactFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contact?: Contact | null;
   contactTags?: ContactTag[];
-  onSaved: () => void;
+  /** Called after a successful save with the saved contact's id —
+   *  the "New conversation" dialog uses it to open the thread of a
+   *  just-created contact without a refetch. */
+  onSaved: (contactId?: string) => void;
   /** Open an existing contact's detail view — used by the duplicate
    *  notice to jump to the contact that already owns this number. */
   onViewExisting?: (contactId: string) => void;
@@ -65,6 +81,9 @@ export function ContactForm({
   >(null);
   const [checkingDup, setCheckingDup] = useState(false);
 
+  // The input only takes DDD+number; `+55` is fixed and never shown.
+  const fullPhone = phone ? `+${COUNTRY_CODE}${phone}` : '';
+
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [loadingTags, setLoadingTags] = useState(false);
@@ -72,7 +91,7 @@ export function ContactForm({
   useEffect(() => {
     if (open) {
       setName(contact?.name ?? '');
-      setPhone(contact?.phone ?? '');
+      setPhone(stripCountryCode(contact?.phone ?? ''));
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
@@ -85,7 +104,7 @@ export function ContactForm({
   // Runs on blur so we don't query on every keystroke.
   async function checkDuplicate() {
     if (isEdit || !accountId) return;
-    const value = phone.trim();
+    const value = fullPhone;
     if (!value) {
       setDupMatch(null);
       return;
@@ -124,7 +143,7 @@ export function ContactForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!phone.trim()) {
+    if (!phone) {
       toast.error(t('phoneRequired'));
       return;
     }
@@ -153,7 +172,7 @@ export function ContactForm({
           .from('contacts')
           .update({
             name: name.trim() || null,
-            phone: phone.trim(),
+            phone: fullPhone,
             email: email.trim() || null,
             company: company.trim() || null,
             updated_at: new Date().toISOString(),
@@ -167,7 +186,7 @@ export function ContactForm({
             user_id: user.id,
             account_id: accountId,
             name: name.trim() || null,
-            phone: phone.trim(),
+            phone: fullPhone,
             email: email.trim() || null,
             company: company.trim() || null,
           })
@@ -198,7 +217,7 @@ export function ContactForm({
 
       toast.success(isEdit ? t('toastSuccessEdit') : t('toastSuccessAdd'));
       onOpenChange(false);
-      onSaved();
+      onSaved(contactId);
     } catch (err: unknown) {
       // The unique index (migration 022) rejects a duplicate phone that
       // slipped past the on-blur check (race, or a format that
@@ -210,7 +229,7 @@ export function ContactForm({
           const existing = await findExistingContact(
             supabase,
             accountId,
-            phone.trim(),
+            fullPhone,
           );
           if (existing) setDupMatch({ contact: existing, exact: true });
         }
@@ -255,17 +274,22 @@ export function ContactForm({
             <Label htmlFor="cf-phone" className="text-muted-foreground">
               {t('phoneLabel')} <span className="text-red-400">*</span>
             </Label>
-            <Input
-              id="cf-phone"
-              value={phone}
-              onChange={(e) => {
-                setPhone(e.target.value);
-                if (dupMatch) setDupMatch(null);
-              }}
-              onBlur={checkDuplicate}
-              placeholder={t('phonePlaceholder')}
-              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
-            />
+            <div className="flex items-stretch rounded-md border border-border bg-muted focus-within:ring-1 focus-within:ring-ring">
+              <span className="flex items-center rounded-l-md border-r border-border px-3 text-sm text-muted-foreground select-none">
+                +{COUNTRY_CODE}
+              </span>
+              <Input
+                id="cf-phone"
+                value={phone}
+                onChange={(e) => {
+                  setPhone(e.target.value.replace(/\D/g, '').slice(0, 11));
+                  if (dupMatch) setDupMatch(null);
+                }}
+                onBlur={checkDuplicate}
+                placeholder={t('phonePlaceholder')}
+                className="border-0 bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0"
+              />
+            </div>
             {dupMatch ? (
               <div
                 className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs ${

@@ -47,7 +47,7 @@ const MOBILE_BREAKPOINT = "(max-width: 767px)";
 
 type View = "canvas" | "list";
 
-const STORAGE_KEY = "wacrm.flowEditor.view";
+const STORAGE_KEY = "senacrm.flowEditor.view";
 
 // Legend covers every node type, derived from NODE_META so a new type
 // can't silently go undocumented. NODE_META's key order already reads
@@ -106,7 +106,7 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
           <div className="flex items-center gap-4 px-6 py-3.5">
             <div
               role="group"
-              aria-label="Editor view"
+              aria-label="Visão do editor"
               className="inline-flex gap-0.5 rounded-lg border border-border bg-muted p-0.5"
             >
               <SegButton

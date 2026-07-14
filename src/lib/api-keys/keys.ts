@@ -12,17 +12,17 @@
 //   only slow the per-request auth lookup. A fast hash with a UNIQUE
 //   index is the correct, indexable choice for opaque secrets.
 //
-// Why the `wacrm_live_` prefix
+// Why the `senacrm_live_` prefix
 //   - Self-identifying: a leaked string is instantly recognisable as
-//     a wacrm key (handy for secret-scanners like GitGuardian).
-//   - Forward-compatible: leaves room for a `wacrm_test_` variant if
+//     a SenaAutomações CRM key (handy for secret-scanners like GitGuardian).
+//   - Forward-compatible: leaves room for a `senacrm_test_` variant if
 //     a sandbox mode is ever added, without reshaping the format.
 // ============================================================
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 /** Secret prefix on every key. Part of the plaintext, not a secret. */
-export const API_KEY_PREFIX = 'wacrm_live_';
+export const API_KEY_PREFIX = 'senacrm_live_';
 
 /**
  * Length of the non-secret display prefix stored in `key_prefix` and

@@ -54,7 +54,7 @@ export function ResponseTimeChart({
             {t('title')}
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {t('description')}
+            {t('descriptionHuman')}
           </p>
         </div>
         <div className="flex items-center gap-3 text-right text-xs">
@@ -62,6 +62,22 @@ export function ResponseTimeChart({
             <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 font-medium text-rose-300 tabular-nums">
               {t('target', { minutes: thresholdMinutes })}
             </span>
+          )}
+          {data && data.pctWithinTarget != null && (
+            <div
+              className={
+                data.pctWithinTarget >= 80
+                  ? 'text-emerald-400'
+                  : data.pctWithinTarget >= 50
+                    ? 'text-amber-400'
+                    : 'text-rose-400'
+              }
+            >
+              <div className="font-semibold tabular-nums">
+                {data.pctWithinTarget.toFixed(0)}%
+              </div>
+              <div className="text-muted-foreground">{t('withinTarget')}</div>
+            </div>
           )}
           {data && (data.thisWeekAvg != null || data.lastWeekAvg != null) && (
             <div>

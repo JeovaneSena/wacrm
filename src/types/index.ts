@@ -269,70 +269,26 @@ export interface MessageReaction {
 export interface WhatsAppConfig {
   id: string;
   user_id: string;
-  phone_number_id: string;
-  waba_id?: string;
-  access_token: string;
-  verify_token?: string;
-  status: 'connected' | 'disconnected';
+  provider: 'meta' | 'uazapi';
+  /** Base URL of the account's self-hosted uazapiGO server. */
+  server_url?: string;
+  /** Encrypted — never sent to the client as plaintext. */
+  instance_token?: string;
+  instance_id?: string;
+  instance_name?: string;
+  /** The paired WhatsApp number, once connected. */
+  owner_phone?: string;
+  status: 'connected' | 'connecting' | 'disconnected';
   connected_at?: string;
-  /**
-   * Set when POST /{phone_number_id}/register last succeeded. NULL
-   * means the number was saved but never actually subscribed for
-   * webhooks on Meta's side — inbound events will be silently lost.
-   */
+  // ---- legacy Meta Cloud API fields (kept nullable; unused by the
+  // uazapi connection flow, see migration 036) ----
+  phone_number_id?: string;
+  waba_id?: string;
+  access_token?: string;
+  verify_token?: string;
   registered_at?: string;
-  /** Set when POST /{waba_id}/subscribed_apps last succeeded. */
   subscribed_apps_at?: string;
-  /** Last error from /register; cleared on success. */
   last_registration_error?: string;
-}
-
-// Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)
-// rather than collapsing to a local TitleCase set — distinctions like
-// PAUSED vs DISABLED vs IN_APPEAL drive the edit/resubmit/delete flows.
-// DRAFT is the local-only state before the row is submitted to Meta.
-export type MessageTemplateStatus =
-  | 'DRAFT'
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'PAUSED'
-  | 'DISABLED'
-  | 'IN_APPEAL'
-  | 'PENDING_DELETION';
-
-export type TemplateButton =
-  | { type: 'QUICK_REPLY'; text: string }
-  | { type: 'URL'; text: string; url: string; example?: string }
-  | { type: 'PHONE_NUMBER'; text: string; phone_number: string }
-  | { type: 'COPY_CODE'; text: string; example: string };
-
-export interface TemplateSampleValues {
-  body?: string[];
-  header?: string[];
-}
-
-export interface MessageTemplate {
-  id: string;
-  user_id: string;
-  name: string;
-  category: 'Marketing' | 'Utility' | 'Authentication';
-  language?: string;
-  header_type?: 'text' | 'image' | 'video' | 'document';
-  header_content?: string;
-  header_handle?: string;
-  header_media_url?: string;
-  body_text: string;
-  footer_text?: string;
-  buttons?: TemplateButton[];
-  sample_values?: TemplateSampleValues;
-  status?: MessageTemplateStatus;
-  meta_template_id?: string;
-  rejection_reason?: string;
-  quality_score?: 'GREEN' | 'YELLOW' | 'RED';
-  submission_error?: string;
-  last_submitted_at?: string;
-  created_at: string;
 }
 
 export interface Pipeline {
@@ -378,53 +334,6 @@ export interface Deal {
   assignee?: Profile;
 }
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
-
-export interface Broadcast {
-  id: string;
-  user_id: string;
-  name: string;
-  template_name: string;
-  template_language: string;
-  template_variables?: Record<string, unknown>;
-  audience_filter?: Record<string, unknown>;
-  scheduled_at?: string;
-  status: BroadcastStatus;
-  total_recipients: number;
-  sent_count: number;
-  delivered_count: number;
-  read_count: number;
-  replied_count: number;
-  failed_count: number;
-  created_at: string;
-}
-
-export interface BroadcastRecipient {
-  id: string;
-  broadcast_id: string;
-  /**
-   * Nullable after migration 004 — becomes NULL when the referenced
-   * contact is deleted (ON DELETE SET NULL). History preserved; the
-   * UI renders "Unknown" for orphaned rows.
-   */
-  contact_id: string | null;
-  status: RecipientStatus;
-  sent_at?: string;
-  delivered_at?: string;
-  read_at?: string;
-  replied_at?: string;
-  error_message?: string;
-  /**
-   * Meta's message id, persisted when the broadcast send succeeds so
-   * the webhook can mirror status updates back onto the recipient row.
-   * Added in migration 003.
-   */
-  whatsapp_message_id?: string;
-  created_at: string;
-  contact?: Contact;
-}
-
 // ============================================================
 // Automations (migration 006)
 // ============================================================
@@ -445,7 +354,6 @@ export type AutomationStepType =
   | 'send_message'
   | 'send_buttons'
   | 'send_list'
-  | 'send_template'
   | 'add_tag'
   | 'remove_tag'
   | 'assign_conversation'
@@ -498,12 +406,6 @@ export interface SendMessageStepConfig {
  */
 export type SendButtonsStepConfig = InteractiveMessagePayload;
 export type SendListStepConfig = InteractiveMessagePayload;
-
-export interface SendTemplateStepConfig {
-  template_name: string;
-  language?: string;
-  variables?: Record<string, string>;
-}
 
 export interface TagStepConfig {
   tag_id: string;
@@ -563,7 +465,6 @@ export type AutomationStepConfig =
   | SendMessageStepConfig
   | SendButtonsStepConfig
   | SendListStepConfig
-  | SendTemplateStepConfig
   | TagStepConfig
   | AssignConversationStepConfig
   | UpdateContactFieldStepConfig

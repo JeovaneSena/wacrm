@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { openConversation } from '@/lib/inbox/open-conversation';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -39,6 +42,7 @@ import {
   Search,
   Plus,
   Upload,
+  MessageSquare,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -67,6 +71,8 @@ interface ContactWithTags extends Contact {
 export default function ContactsPage() {
   const t = useTranslations('Contacts.page');
   const supabase = createClient();
+  const router = useRouter();
+  const { user, accountId } = useAuth();
   const canEdit = useCan('send-messages');
   const canEditSettings = useCan('edit-settings');
 
@@ -247,6 +253,24 @@ export default function ContactsPage() {
   function confirmDelete(contact: Contact) {
     setDeleteTarget(contact);
     setDeleteConfirmOpen(true);
+  }
+
+  // "Send message" row action — find-or-create the contact's
+  // conversation, then jump to it in the inbox via the ?c= deep-link.
+  async function handleMessage(contact: Contact) {
+    if (!user || !accountId) return;
+    try {
+      const conversationId = await openConversation(
+        supabase,
+        accountId,
+        user.id,
+        contact.id,
+      );
+      router.push(`/inbox?c=${conversationId}`);
+    } catch (err) {
+      console.error('[contacts] open conversation failed:', err);
+      toast.error(t('messageActionError'));
+    }
   }
 
   async function handleDelete() {
@@ -672,6 +696,18 @@ export default function ContactsPage() {
                           <Pencil className="size-4" />
                           {t('editAction')}
                         </DropdownMenuItem>
+                        {canEdit && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleMessage(contact);
+                            }}
+                            className="text-popover-foreground focus:bg-muted focus:text-foreground"
+                          >
+                            <MessageSquare className="size-4" />
+                            {t('messageAction')}
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator className="bg-border" />
                         <DropdownMenuItem
                           variant="destructive"
