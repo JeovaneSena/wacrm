@@ -38,8 +38,11 @@ interface ConversationListProps {
   onNewConversation?: () => void;
 }
 
+// `open` deliberately avoids `bg-primary` — that color is reserved for
+// the unread badge, and having both use purple made the status dot
+// look like a stuck "unread" indicator that never cleared on read.
 const STATUS_COLORS: Record<ConversationStatus, string> = {
-  open: "bg-primary",
+  open: "bg-sky-500",
   pending: "bg-amber-500",
   closed: "bg-muted-foreground",
 };
@@ -490,13 +493,25 @@ function ConversationItem({
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-foreground">
+          <span
+            className={cn(
+              "truncate text-sm text-foreground",
+              conversation.unread_count > 0 ? "font-bold" : "font-medium",
+            )}
+          >
             {displayName}
           </span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="truncate text-xs text-muted-foreground">
+          <p
+            className={cn(
+              "truncate text-xs",
+              conversation.unread_count > 0
+                ? "font-medium text-foreground"
+                : "text-muted-foreground",
+            )}
+          >
             {conversation.last_message_text || t("noMessagesYet")}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
