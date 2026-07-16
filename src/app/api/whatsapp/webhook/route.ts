@@ -494,14 +494,14 @@ async function findOrCreateConversation(
   configOwnerUserId: string,
   contactId: string,
 ) {
-  const { data: existing, error: findError } = await supabaseAdmin()
+  const { data: existing } = await supabaseAdmin()
     .from('conversations')
     .select('*')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
-    .single()
+    .maybeSingle()
 
-  if (!findError && existing) {
+  if (existing) {
     return { conversation: existing, created: false }
   }
 
@@ -512,6 +512,18 @@ async function findOrCreateConversation(
     .single()
 
   if (createError) {
+    // Unique index (migration 037): a concurrent webhook invocation —
+    // typical when a bot sends a burst of messages — won the insert
+    // race. Re-fetch the winner instead of dropping this message.
+    if (isUniqueViolation(createError)) {
+      const { data: raced } = await supabaseAdmin()
+        .from('conversations')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .maybeSingle()
+      if (raced) return { conversation: raced, created: false }
+    }
     console.error('Error creating conversation:', createError)
     return null
   }

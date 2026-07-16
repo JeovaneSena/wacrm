@@ -235,6 +235,17 @@ async function findOrCreateConversation(
     .single()
 
   if (error) {
+    // Unique index (migration 037): lost a create race (e.g. an
+    // inbound webhook just opened this thread) — reuse the winner.
+    if ((error as { code?: string }).code === '23505') {
+      const { data: raced } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .maybeSingle()
+      if (raced) return raced.id
+    }
     console.error('Error creating conversation for contact send:', error.message)
     return null
   }
