@@ -76,10 +76,47 @@ export async function GET(
       messageId: mediaId,
     })
 
-    return new Response(new Uint8Array(buffer), {
+    const bytes = new Uint8Array(buffer)
+    const total = bytes.length
+
+    // Video/audio seeking needs byte-range support — without it the
+    // browser can't jump to an arbitrary timestamp, since it has no
+    // way to fetch just that slice. `downloadMedia` already pulls the
+    // whole file from uazapi, so this just slices what's in memory
+    // rather than re-requesting upstream per range.
+    const range = request.headers.get('range')
+    if (range) {
+      const match = /bytes=(\d*)-(\d*)/.exec(range)
+      const start = match?.[1] ? parseInt(match[1], 10) : 0
+      const end = match?.[2] ? parseInt(match[2], 10) : total - 1
+      const clampedEnd = Math.min(end, total - 1)
+
+      if (start >= total || start > clampedEnd) {
+        return new Response(null, {
+          status: 416,
+          headers: { 'Content-Range': `bytes */${total}` },
+        })
+      }
+
+      const slice = bytes.slice(start, clampedEnd + 1)
+      return new Response(slice, {
+        status: 206,
+        headers: {
+          'Content-Type': contentType || 'application/octet-stream',
+          'Content-Range': `bytes ${start}-${clampedEnd}/${total}`,
+          'Content-Length': String(slice.length),
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': 'public, max-age=86400',
+        },
+      })
+    }
+
+    return new Response(bytes, {
       status: 200,
       headers: {
         'Content-Type': contentType || 'application/octet-stream',
+        'Content-Length': String(total),
+        'Accept-Ranges': 'bytes',
         'Cache-Control': 'public, max-age=86400',
       },
     })

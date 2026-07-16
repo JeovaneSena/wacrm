@@ -67,7 +67,7 @@ export function AudioPlayer({ src }: { src: string }) {
   }
 
   return (
-    <div className="flex w-60 items-center gap-2 rounded-lg bg-muted/40 px-2 py-1.5">
+    <div className="flex w-full max-w-60 items-center gap-1.5 rounded-lg bg-muted/40 px-2 py-1.5">
       <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
       <button
         type="button"
@@ -84,17 +84,17 @@ export function AudioPlayer({ src }: { src: string }) {
         step={0.1}
         value={currentTime}
         onChange={seek}
-        className="h-1 flex-1 accent-primary"
+        className="h-1 min-w-0 flex-1 accent-primary"
         aria-label="Seek"
       />
-      <span className="w-9 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
+      <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
         {fmt(playing || currentTime > 0 ? currentTime : duration)}
       </span>
       <button
         type="button"
         onClick={cycleSpeed}
         className={cn(
-          "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+          "w-8 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-semibold tabular-nums",
           speedIndex > 0
             ? "bg-primary/20 text-primary"
             : "bg-transparent text-muted-foreground hover:bg-muted",
