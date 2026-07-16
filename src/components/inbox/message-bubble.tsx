@@ -14,10 +14,13 @@ import {
   ImageOff,
   CornerDownLeft,
   Sparkles,
+  Play,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
+import { MediaLightbox } from "./media-lightbox";
+import { AudioPlayer } from "./audio-player";
 import { InteractivePreview } from "@/components/interactive/interactive-preview";
 import { useTranslations } from "next-intl";
 
@@ -60,6 +63,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const loadImage = useCallback(async () => {
     if (!url) return;
@@ -110,12 +114,53 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   }
 
   return (
-    <img
-      src={src ?? ""}
-      alt={alt}
-      className="max-h-64 max-w-60 rounded-lg object-cover"
-      onError={() => setError(true)}
-    />
+    <>
+      <img
+        src={src ?? ""}
+        alt={alt}
+        className="max-h-64 max-w-60 cursor-pointer rounded-lg object-cover"
+        onError={() => setError(true)}
+        onClick={() => setLightboxOpen(true)}
+      />
+      {src && (
+        <MediaLightbox
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
+          kind="image"
+          src={src}
+          alt={alt}
+        />
+      )}
+    </>
+  );
+}
+
+function MediaVideo({ url, alt }: { url: string; alt: string }) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setLightboxOpen(true)}
+        aria-label={alt}
+        className="group relative block h-40 w-60 overflow-hidden rounded-lg bg-black"
+      >
+        <video src={url} className="h-full w-full object-cover" preload="metadata" />
+        <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/30">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90">
+            <Play className="h-4 w-4 translate-x-px text-black" />
+          </span>
+        </span>
+      </button>
+      <MediaLightbox
+        open={lightboxOpen}
+        onOpenChange={setLightboxOpen}
+        kind="video"
+        src={url}
+        alt={alt}
+      />
+    </>
   );
 }
 
@@ -148,11 +193,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       return (
         <div>
           {message.media_url ? (
-            <video
-              src={message.media_url}
-              controls
-              className="max-h-64 max-w-60 rounded-lg"
-            />
+            <MediaVideo url={message.media_url} alt="Shared video" />
           ) : (
             <MediaUnavailable label={t("video")} t={t} />
           )}
@@ -168,7 +209,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       return (
         <div>
           {message.media_url ? (
-            <audio src={message.media_url} controls className="max-w-60" />
+            <AudioPlayer src={message.media_url} />
           ) : (
             <MediaUnavailable label={t("audio")} t={t} />
           )}

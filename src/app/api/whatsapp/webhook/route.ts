@@ -257,10 +257,18 @@ async function processMessage(
 
   const { contentText, mediaUrl, contentType } = parseMessageContent(message)
 
-  // Swipe-reply — best-effort, unconfirmed payload shape.
+  // Swipe-reply — best-effort, unconfirmed payload shape. Tries the
+  // field names most likely to carry the quoted message's uazapi id
+  // across Baileys-derived payload variants; logs the raw shape when
+  // none match so a real payload can be diagnosed from production logs
+  // instead of guessing again.
   let replyToInternalId: string | null = null
   if (message.quoted && typeof message.quoted === 'object') {
-    const quotedId = (message.quoted as Record<string, unknown>).id
+    const quoted = message.quoted as Record<string, unknown>
+    const key = quoted.key as Record<string, unknown> | undefined
+    const quotedId =
+      quoted.id ?? quoted.message_id ?? quoted.messageid ?? quoted.stanzaId ?? key?.id
+
     if (typeof quotedId === 'string' && quotedId) {
       const { data } = await supabaseAdmin()
         .from('messages')
@@ -269,6 +277,8 @@ async function processMessage(
         .eq('conversation_id', conversation.id)
         .maybeSingle()
       replyToInternalId = data?.id ?? null
+    } else {
+      console.warn('[uazapi webhook] unrecognized `quoted` shape:', JSON.stringify(message.quoted))
     }
   }
 

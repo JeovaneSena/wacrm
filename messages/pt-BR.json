@@ -185,7 +185,8 @@
       "failedSend": "Falha ao enviar: {reason}",
       "waitSending": "Aguarde a mensagem terminar de enviar",
       "reactionFailed": "Falha na reação: {reason}",
-      "failedAssign": "Falha ao atualizar a atribuição"
+      "failedAssign": "Falha ao atualizar a atribuição",
+      "mediaLightboxTitle": "Visualização de mídia"
     },
     "composer": {
       "draftHint": "Toque em ✨ para rascunhar uma resposta com IA — você pode editar antes de enviar",

@@ -185,7 +185,8 @@
       "failedSend": "Failed to send: {reason}",
       "waitSending": "Wait for the message to finish sending",
       "reactionFailed": "Reaction failed: {reason}",
-      "failedAssign": "Failed to update assignment"
+      "failedAssign": "Failed to update assignment",
+      "mediaLightboxTitle": "Media preview"
     },
     "composer": {
       "draftHint": "Tap the ✨ to draft a reply with AI — you can edit it before sending",
