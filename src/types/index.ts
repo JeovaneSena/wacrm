@@ -252,6 +252,13 @@ export interface Message {
    * badge in the inbox. Migration 033.
    */
   ai_generated?: boolean;
+  /**
+   * Where an OUTBOUND message originated: the CRM composer, the paired
+   * phone / WhatsApp Web (fromMe echo), the public API, or a bot send.
+   * Null for inbound messages and for pre-038 rows whose origin is
+   * ambiguous. Drives the origin badge in the inbox. Migration 038.
+   */
+  source?: 'crm' | 'phone' | 'api' | 'bot' | null;
 }
 
 export type ReactionActor = 'customer' | 'agent';

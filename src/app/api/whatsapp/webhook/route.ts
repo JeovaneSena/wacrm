@@ -276,6 +276,7 @@ async function processOutboundEcho(
     sender_type: 'agent',
     // No CRM user to attribute — it came from the phone itself.
     sender_id: null,
+    source: 'phone',
     content_type: contentType,
     content_text: contentText,
     media_url: mediaUrl,

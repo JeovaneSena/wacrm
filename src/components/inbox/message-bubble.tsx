@@ -15,6 +15,9 @@ import {
   CornerDownLeft,
   Sparkles,
   Play,
+  Smartphone,
+  Webhook,
+  Bot,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
@@ -353,6 +356,38 @@ export function MessageBubble({
             >
               <Sparkles className="h-2.5 w-2.5" />
               {t("aiBadge")}
+            </span>
+          )}
+          {/* Origin badge — flags outbound messages that did NOT come
+              from the CRM composer ('crm'/null render nothing: the CRM
+              is the default channel, labeling every bubble is noise).
+              'bot' is skipped when the AI badge already covers it. */}
+          {(message.source === "phone" || message.source === "api" ||
+            (message.source === "bot" && !message.ai_generated)) && (
+            <span
+              className="inline-flex items-center gap-0.5 rounded-full bg-primary-foreground/20 px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide text-primary-foreground"
+              title={t(
+                message.source === "phone"
+                  ? "sourcePhoneTitle"
+                  : message.source === "api"
+                    ? "sourceApiTitle"
+                    : "sourceBotTitle",
+              )}
+            >
+              {message.source === "phone" ? (
+                <Smartphone className="h-2.5 w-2.5" />
+              ) : message.source === "api" ? (
+                <Webhook className="h-2.5 w-2.5" />
+              ) : (
+                <Bot className="h-2.5 w-2.5" />
+              )}
+              {t(
+                message.source === "phone"
+                  ? "sourcePhone"
+                  : message.source === "api"
+                    ? "sourceApi"
+                    : "sourceBot",
+              )}
             </span>
           )}
           <span

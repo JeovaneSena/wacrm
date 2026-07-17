@@ -74,6 +74,12 @@ export interface SendMessageParams {
    * SLA/volume breakdown has someone to attribute the reply to.
    */
   senderId?: string | null;
+  /**
+   * Where this send originated — 'crm' (dashboard composer, the
+   * default) or 'api' (public /api/v1/messages). Persisted as
+   * `messages.source` so the inbox can badge non-CRM sends.
+   */
+  source?: 'crm' | 'api';
 }
 
 export interface SendMessageResult {
@@ -174,6 +180,7 @@ export async function sendMessageToConversation(
     interactivePayload,
     replyToMessageId,
     senderId,
+    source,
   } = params;
 
   if (!conversationId) {
@@ -347,6 +354,7 @@ export async function sendMessageToConversation(
       conversation_id: conversationId,
       sender_type: 'agent',
       sender_id: senderId || null,
+      source: source ?? 'crm',
       content_type: messageType,
       content_text: interactiveBody ?? contentText ?? null,
       media_url: mediaUrl || null,

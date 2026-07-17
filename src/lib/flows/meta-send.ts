@@ -95,6 +95,7 @@ export async function engineSendText(
   const { error: msgErr } = await db.from('messages').insert({
     conversation_id: args.conversationId,
     sender_type: 'bot',
+    source: 'bot',
     content_type: 'text',
     content_text: args.text,
     message_id: waMessageId,
@@ -188,6 +189,7 @@ export async function engineSendMedia(
   const { error: msgErr } = await db.from('messages').insert({
     conversation_id: args.conversationId,
     sender_type: 'bot',
+    source: 'bot',
     content_type: args.kind,
     content_text: args.caption ?? null,
     message_id: waMessageId,
@@ -337,6 +339,7 @@ async function sendInteractiveViaUazapi(
   const { error: msgErr } = await db.from('messages').insert({
     conversation_id: input.conversationId,
     sender_type: 'bot',
+    source: 'bot',
     content_type: 'interactive',
     content_text: input.bodyText,
     interactive_payload: interactivePayload,

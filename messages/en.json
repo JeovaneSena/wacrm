@@ -232,7 +232,13 @@
       "interactiveReply": "[Interactive reply]",
       "unsupported": "[Unsupported message type]",
       "aiBadge": "AI",
-      "aiBadgeTitle": "Sent automatically by the AI assistant"
+      "aiBadgeTitle": "Sent automatically by the AI assistant",
+      "sourcePhone": "Phone",
+      "sourcePhoneTitle": "Sent from the phone or WhatsApp Web, outside the CRM",
+      "sourceApi": "API",
+      "sourceApiTitle": "Sent via the public API",
+      "sourceBot": "Bot",
+      "sourceBotTitle": "Sent automatically by a flow or automation"
     },
     "actions": {
       "reply": "Reply",
