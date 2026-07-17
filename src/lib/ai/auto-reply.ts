@@ -154,6 +154,36 @@ export async function dispatchInboundToAiReply(
         update.assigned_agent_id = config.handoffAgentId
       }
       await db.from('conversations').update(update).eq('id', conversationId)
+
+      // When the handoff lands in the shared queue (no configured
+      // handoff agent), nobody gets the assignment-trigger notification
+      // — alert every agent+ member so the thread isn't silently
+      // orphaned. When an agent IS assigned above, the 027 trigger
+      // already notified them; skip to avoid a double alert.
+      if (!update.assigned_agent_id) {
+        try {
+          const { data: members } = await db
+            .from('profiles')
+            .select('user_id, account_role')
+            .eq('account_id', accountId)
+            .in('account_role', ['agent', 'admin', 'owner'])
+          if (members && members.length > 0) {
+            const rows = members.map((m: { user_id: string }) => ({
+              account_id: accountId,
+              user_id: m.user_id,
+              type: 'ai_handoff',
+              conversation_id: conversationId,
+              contact_id: contactId,
+              title: 'AI handed off to a human',
+              body: summary?.slice(0, 160) || null,
+            }))
+            const { error: notifErr } = await db.from('notifications').insert(rows)
+            if (notifErr) console.error('[notifications] ai_handoff insert failed:', notifErr.message)
+          }
+        } catch (err) {
+          console.error('[notifications] ai_handoff threw:', err instanceof Error ? err.message : err)
+        }
+      }
       return
     }
 

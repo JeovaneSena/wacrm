@@ -137,6 +137,21 @@
       "title": "Ainda não há dados suficientes"
     }
   },
+  "Notifications": {
+    "title": "Notificações",
+    "subtitle": "Avisos sobre atribuições, conversas aguardando e transferências da IA.",
+    "markAll": "Marcar todas como lidas",
+    "empty": "Nenhuma notificação ainda",
+    "emptyHint": "Você será avisado aqui sobre conversas atribuídas, filas paradas e transferências da IA.",
+    "unread": "Não lida",
+    "retry": "Tentar novamente",
+    "errMarkRead": "Falha ao marcar como lida",
+    "errMarkAll": "Falha ao marcar todas como lidas",
+    "typeAssigned": "Conversa atribuída a você",
+    "typeUnattended": "Conversa aguardando sem atendente",
+    "typeNewMessage": "Nova mensagem em conversa sua",
+    "typeAiHandoff": "IA transferiu para atendimento humano"
+  },
   "Inbox": {
     "page": {
       "whatsappNotConnected": "O WhatsApp® não está conectado. Vá em Configurações para conectar sua conta."

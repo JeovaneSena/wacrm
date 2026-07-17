@@ -5,17 +5,37 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { Notification } from "@/types";
-import { Bell, CheckCheck, Loader2, UserPlus } from "lucide-react";
+import {
+  Bell,
+  Bot,
+  CheckCheck,
+  Hourglass,
+  Loader2,
+  MessageSquare,
+  UserPlus,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-// Icon per notification type. Only one type exists today
-// (conversation_assigned) but this keeps future types a one-line add.
 const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
   conversation_assigned: UserPlus,
+  unattended_conversation: Hourglass,
+  new_message_assigned: MessageSquare,
+  ai_handoff: Bot,
+};
+
+// Localized title per type. The DB `title` column carries hardcoded
+// English written by the 027 trigger (and terse fallbacks from app
+// inserts) — rendering by type keeps the page in the app locale and
+// only falls back to the stored title for unknown future types.
+const TYPE_TITLE_KEY: Record<Notification["type"], string> = {
+  conversation_assigned: "typeAssigned",
+  unattended_conversation: "typeUnattended",
+  new_message_assigned: "typeNewMessage",
+  ai_handoff: "typeAiHandoff",
 };
 
 export default function NotificationsPage() {
@@ -238,7 +258,7 @@ export default function NotificationsPage() {
                           isUnread ? "text-foreground" : "text-muted-foreground",
                         )}
                       >
-                        {n.title}
+                        {TYPE_TITLE_KEY[n.type] ? t(TYPE_TITLE_KEY[n.type]) : n.title}
                       </span>
                       {isUnread && (
                         <span

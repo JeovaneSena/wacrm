@@ -433,6 +433,39 @@ async function processMessage(
     })
     .eq('id', conversation.id)
 
+  // Notify the assigned agent about the new inbound message. Capped at
+  // one UNREAD notification per conversation — a chatty customer
+  // shouldn't stack ten alerts; the pending one already says "go look".
+  // Best-effort: a failure here must never block message processing.
+  if (conversation.assigned_agent_id) {
+    try {
+      const { data: pending } = await supabaseAdmin()
+        .from('notifications')
+        .select('id')
+        .eq('conversation_id', conversation.id)
+        .eq('user_id', conversation.assigned_agent_id)
+        .eq('type', 'new_message_assigned')
+        .is('read_at', null)
+        .limit(1)
+        .maybeSingle()
+
+      if (!pending) {
+        const { error: notifErr } = await supabaseAdmin().from('notifications').insert({
+          account_id: accountId,
+          user_id: conversation.assigned_agent_id,
+          type: 'new_message_assigned',
+          conversation_id: conversation.id,
+          contact_id: contactRecord.id,
+          title: 'New message in your conversation',
+          body: `${contactRecord.name || senderPhone}: ${(contentText || `[${contentType}]`).slice(0, 120)}`,
+        })
+        if (notifErr) console.error('[notifications] new_message_assigned insert failed:', notifErr.message)
+      }
+    } catch (err) {
+      console.error('[notifications] new_message_assigned threw:', err instanceof Error ? err.message : err)
+    }
+  }
+
   const flowResult = await dispatchInboundToFlows({
     accountId,
     userId: configOwnerUserId,

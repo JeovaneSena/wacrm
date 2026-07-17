@@ -187,7 +187,14 @@ export interface Conversation {
 // Notifications (migration 027)
 // ============================================================
 
-export type NotificationType = 'conversation_assigned';
+export type NotificationType =
+  | 'conversation_assigned'
+  /** Conversation waiting on a customer message with no assigned agent for too long. */
+  | 'unattended_conversation'
+  /** New customer message in a conversation assigned to the recipient. */
+  | 'new_message_assigned'
+  /** The AI assistant handed the conversation off to a human. */
+  | 'ai_handoff';
 
 export interface Notification {
   id: string;

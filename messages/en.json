@@ -137,6 +137,21 @@
       "title": "Not enough data yet"
     }
   },
+  "Notifications": {
+    "title": "Notifications",
+    "subtitle": "Alerts about assignments, waiting conversations, and AI handoffs.",
+    "markAll": "Mark all as read",
+    "empty": "No notifications yet",
+    "emptyHint": "You'll be alerted here about assigned conversations, stalled queues, and AI handoffs.",
+    "unread": "Unread",
+    "retry": "Retry",
+    "errMarkRead": "Failed to mark as read",
+    "errMarkAll": "Failed to mark all as read",
+    "typeAssigned": "Conversation assigned to you",
+    "typeUnattended": "Conversation waiting with no agent",
+    "typeNewMessage": "New message in your conversation",
+    "typeAiHandoff": "AI handed off to a human"
+  },
   "Inbox": {
     "page": {
       "whatsappNotConnected": "WhatsApp® is not connected. Go to Settings to connect your account."
