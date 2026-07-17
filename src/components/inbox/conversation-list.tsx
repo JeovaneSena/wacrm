@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
 import { Search, ChevronDown, X, SquarePen } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,17 +38,6 @@ interface ConversationListProps {
   /** When provided, renders a new-conversation button in the header. */
   onNewConversation?: () => void;
 }
-
-// `open` deliberately avoids `bg-primary` — that color is reserved for
-// the unread badge, and having both use purple made the status dot
-// look like a stuck "unread" indicator that never cleared on read.
-const STATUS_COLORS: Record<ConversationStatus, string> = {
-  open: "bg-sky-500",
-  pending: "bg-amber-500",
-  closed: "bg-muted-foreground",
-};
-
-
 
 type InboxFilter = ConversationStatus | "all" | "unread";
 
@@ -193,7 +183,15 @@ export function ConversationList({
       });
     }
 
-    return result;
+    // Sort on every render, not just on the initial fetch: the parent's
+    // realtime handlers patch `last_message_at` in place without moving
+    // the row, so without this a conversation that just received a
+    // message stayed stuck at its old position until a full refetch.
+    return [...result].sort((a, b) => {
+      const ta = new Date(a.last_message_at ?? a.created_at).getTime();
+      const tb = new Date(b.last_message_at ?? b.created_at).getTime();
+      return tb - ta;
+    });
   }, [conversations, filter, search, selectedTagIds, selectedCompany]);
 
   const toggleTag = useCallback((id: string) => {
@@ -466,6 +464,7 @@ function ConversationItem({
   const timeAgo = conversation.last_message_at
     ? formatDistanceToNow(new Date(conversation.last_message_at), {
         addSuffix: false,
+        locale: ptBR,
       })
     : "";
 
@@ -514,20 +513,14 @@ function ConversationItem({
           >
             {conversation.last_message_text || t("noMessagesYet")}
           </p>
-          <div className="flex shrink-0 items-center gap-1.5">
-            {conversation.unread_count > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                {conversation.unread_count}
-              </span>
-            )}
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                STATUS_COLORS[conversation.status]
-              )}
-              title={conversation.status}
-            />
-          </div>
+          {/* Status dot removed on purpose — a dot on every "open" row
+              read as a stuck unread marker. Unread is the only per-row
+              indicator now; status lives in the thread header + filter. */}
+          {conversation.unread_count > 0 && (
+            <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              {conversation.unread_count}
+            </span>
+          )}
         </div>
       </div>
     </button>

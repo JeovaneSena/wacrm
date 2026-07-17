@@ -201,7 +201,8 @@
       "waitSending": "Aguarde a mensagem terminar de enviar",
       "reactionFailed": "Falha na reação: {reason}",
       "failedAssign": "Falha ao atualizar a atribuição",
-      "mediaLightboxTitle": "Visualização de mídia"
+      "mediaLightboxTitle": "Visualização de mídia",
+      "documentFallback": "Documento"
     },
     "composer": {
       "draftHint": "Toque em ✨ para rascunhar uma resposta com IA — você pode editar antes de enviar",
@@ -253,7 +254,10 @@
       "sourceApi": "API",
       "sourceApiTitle": "Enviado via API pública",
       "sourceBot": "Bot",
-      "sourceBotTitle": "Enviado automaticamente por fluxo ou automação"
+      "sourceBotTitle": "Enviado automaticamente por fluxo ou automação",
+      "audioPlay": "Reproduzir",
+      "audioPause": "Pausar",
+      "audioSeek": "Avançar/retroceder"
     },
     "actions": {
       "reply": "Responder",

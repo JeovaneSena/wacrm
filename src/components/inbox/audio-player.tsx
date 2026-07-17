@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 const SPEEDS = [1, 1.5, 2] as const;
@@ -20,6 +21,7 @@ function fmt(seconds: number): string {
  * here instead. Wraps a plain hidden `<audio>` for actual playback.
  */
 export function AudioPlayer({ src }: { src: string }) {
+  const t = useTranslations("Inbox.bubble");
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -72,7 +74,7 @@ export function AudioPlayer({ src }: { src: string }) {
       <button
         type="button"
         onClick={togglePlay}
-        aria-label={playing ? "Pause" : "Play"}
+        aria-label={playing ? t("audioPause") : t("audioPlay")}
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
       >
         {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 translate-x-px" />}
@@ -85,7 +87,7 @@ export function AudioPlayer({ src }: { src: string }) {
         value={currentTime}
         onChange={seek}
         className="h-1 min-w-0 flex-1 accent-primary"
-        aria-label="Seek"
+        aria-label={t("audioSeek")}
       />
       <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
         {fmt(playing || currentTime > 0 ? currentTime : duration)}

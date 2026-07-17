@@ -201,7 +201,8 @@
       "waitSending": "Wait for the message to finish sending",
       "reactionFailed": "Reaction failed: {reason}",
       "failedAssign": "Failed to update assignment",
-      "mediaLightboxTitle": "Media preview"
+      "mediaLightboxTitle": "Media preview",
+      "documentFallback": "Document"
     },
     "composer": {
       "draftHint": "Tap the ✨ to draft a reply with AI — you can edit it before sending",
@@ -253,7 +254,10 @@
       "sourceApi": "API",
       "sourceApiTitle": "Sent via the public API",
       "sourceBot": "Bot",
-      "sourceBotTitle": "Sent automatically by a flow or automation"
+      "sourceBotTitle": "Sent automatically by a flow or automation",
+      "audioPlay": "Play",
+      "audioPause": "Pause",
+      "audioSeek": "Seek"
     },
     "actions": {
       "reply": "Reply",
