@@ -36,13 +36,14 @@ import { useTranslations } from "next-intl";
 // agent+. The two CTAs gate on different `useCan` capabilities,
 // not on different copy.
 
-// Spec-defined seed — name and color per the product spec.
+// Spec-defined seed — stage names are DATA (rows in pipeline_stages),
+// not i18n keys, so they're seeded in pt-BR to match the app locale.
 const SPEC_DEFAULT_STAGES = [
-  { name: "New Lead", color: "#3b82f6", position: 0 }, // blue
-  { name: "Qualified", color: "#eab308", position: 1 }, // yellow
-  { name: "Proposal Sent", color: "#f97316", position: 2 }, // orange
-  { name: "Negotiation", color: "#8b5cf6", position: 3 }, // purple
-  { name: "Won", color: "#22c55e", position: 4 }, // green
+  { name: "Novo Lead", color: "#3b82f6", position: 0 }, // blue
+  { name: "Qualificado", color: "#eab308", position: 1 }, // yellow
+  { name: "Proposta Enviada", color: "#f97316", position: 2 }, // orange
+  { name: "Negociação", color: "#8b5cf6", position: 3 }, // purple
+  { name: "Ganho", color: "#22c55e", position: 4 }, // green
 ];
 
 export default function PipelinesPage() {
@@ -120,7 +121,7 @@ export default function PipelinesPage() {
 
     const { data: pipeline, error } = await supabase
       .from("pipelines")
-      .insert({ user_id: user.id, account_id: accountId, name: "Sales Pipeline" })
+      .insert({ user_id: user.id, account_id: accountId, name: "Funil de Vendas" })
       .select()
       .single();
 
