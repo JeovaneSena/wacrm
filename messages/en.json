@@ -625,6 +625,7 @@
       "create": "Create Automation",
       "retry": "Retry",
       "templatesTitle": "Quick-start templates",
+      "errLoad": "Failed to load automations",
       "emptyTitle": "No automations yet",
       "emptyDesc": "Pick a template above or create one from scratch.",
       "runs": "{count} run",

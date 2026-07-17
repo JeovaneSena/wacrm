@@ -625,6 +625,7 @@
       "create": "Criar Automação",
       "retry": "Tentar novamente",
       "templatesTitle": "Modelos prontos",
+      "errLoad": "Falha ao carregar as automações",
       "emptyTitle": "Nenhuma automação ainda",
       "emptyDesc": "Escolha um modelo acima ou crie uma do zero.",
       "runs": "{count} execução",
