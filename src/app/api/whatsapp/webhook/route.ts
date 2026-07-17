@@ -194,10 +194,6 @@ async function processWebhook(
   if (body.EventType !== 'messages' || !body.message) return
 
   const message = body.message
-  // fromMe: we sent this via the paired phone directly (not via this
-  // CRM's send API, which persists synchronously in send-message.ts).
-  // Mirroring it here would double-insert — skip.
-  if (message.fromMe) return
 
   // Groups aren't modeled in this CRM's contact/conversation schema
   // (conversations are 1:1 per contact.phone) — same scope the Meta
@@ -205,7 +201,122 @@ async function processWebhook(
   // all. Skip rather than mis-attribute a group thread to one contact.
   if (message.isGroup) return
 
+  // fromMe: we sent this — either via this CRM (send-message.ts already
+  // persisted it synchronously) or directly from the paired phone /
+  // WhatsApp Web. Mirror the latter so every outbound message shows up
+  // in the CRM regardless of where it was typed; the former is deduped
+  // by its uazapi message id inside processOutboundEcho.
+  if (message.fromMe) {
+    await processOutboundEcho(message, body.chat, config)
+    return
+  }
+
   await processMessage(message, body.chat, config)
+}
+
+/**
+ * Record a message the account owner sent OUTSIDE the CRM (paired
+ * phone, WhatsApp Web) so the conversation history here stays
+ * complete. CRM-originated sends already exist in `messages` (written
+ * synchronously by send-message.ts with uazapi's message id), so the
+ * id check below drops those echoes instead of double-inserting.
+ *
+ * Known small race: the echo can occasionally reach us before the CRM
+ * send's own insert commits, which would duplicate that one message.
+ * Accepted for now — the window is milliseconds and the alternative
+ * (a unique index on message_id) needs a data-cleanup migration first.
+ */
+async function processOutboundEcho(
+  message: UazapiMessage,
+  chat: UazapiChat | undefined,
+  config: { account_id: string; user_id: string; server_url: string; instance_token: string }
+) {
+  // For fromMe events the interesting party is the chat peer —
+  // sender_pn is our own number here.
+  const peerPhone = normalizePhone(message.chatid.split('@')[0])
+  if (!peerPhone) return
+
+  // Dedupe against CRM-originated sends. The send API stores whichever
+  // id shape uazapi returned (`id` or bare `messageid`), so match both.
+  const candidateIds = [message.id, message.messageid].filter(Boolean)
+  const { data: existing } = await supabaseAdmin()
+    .from('messages')
+    .select('id')
+    .in('message_id', candidateIds)
+    .limit(1)
+    .maybeSingle()
+  if (existing) return
+
+  // senderName is OUR profile name on fromMe events — only the chat
+  // metadata can name the contact here.
+  const contactName = chat?.wa_contactName || chat?.name || peerPhone
+
+  const contactOutcome = await findOrCreateContact(
+    config.account_id,
+    config.user_id,
+    peerPhone,
+    contactName,
+    config.server_url,
+    config.instance_token,
+  )
+  if (!contactOutcome) return
+
+  const convResult = await findOrCreateConversation(
+    config.account_id,
+    config.user_id,
+    contactOutcome.contact.id,
+  )
+  if (!convResult) return
+  const conversation = convResult.conversation
+
+  const { contentText, mediaUrl, contentType } = parseMessageContent(message)
+
+  const { error: msgError } = await supabaseAdmin().from('messages').insert({
+    conversation_id: conversation.id,
+    sender_type: 'agent',
+    // No CRM user to attribute — it came from the phone itself.
+    sender_id: null,
+    content_type: contentType,
+    content_text: contentText,
+    media_url: mediaUrl,
+    message_id: message.id,
+    status: 'sent',
+    created_at: new Date(message.messageTimestamp).toISOString(),
+  })
+  if (msgError) {
+    console.error('[uazapi webhook] error inserting outbound echo:', msgError)
+    return
+  }
+
+  await supabaseAdmin()
+    .from('conversations')
+    .update({
+      last_message_text: contentText || `[${contentType}]`,
+      last_message_at: new Date(message.messageTimestamp).toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', conversation.id)
+
+  // A human replying from the phone is the same "yield, human is here"
+  // signal as an agent replying from the CRM composer — pause any
+  // active Flow run for this contact (mirrors send-message.ts).
+  try {
+    const { error: pauseErr } = await supabaseAdmin()
+      .from('flow_runs')
+      .update({
+        status: 'paused_by_agent',
+        ended_at: new Date().toISOString(),
+        end_reason: 'agent_replied',
+      })
+      .eq('account_id', config.account_id)
+      .eq('contact_id', contactOutcome.contact.id)
+      .eq('status', 'active')
+    if (pauseErr) {
+      console.error('[flows] pause-on-phone-send failed:', pauseErr.message)
+    }
+  } catch (err) {
+    console.error('[flows] pause-on-phone-send threw:', err instanceof Error ? err.message : err)
+  }
 }
 
 async function processMessage(
