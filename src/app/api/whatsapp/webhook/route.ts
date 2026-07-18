@@ -405,11 +405,47 @@ async function processMessage(
   // carries the tapped choice's id in buttonOrListid.
   const interactiveReplyId = message.buttonOrListid || null
 
+  // uazapi doesn't always echo the tapped choice's TITLE in
+  // message.text — without it the bubble falls back to a generic
+  // "[Interactive reply]". The title lives in the menu WE sent, so
+  // resolve it from the conversation's most recent outbound
+  // interactive payload by matching the reply id. Best-effort.
+  let resolvedText = contentText
+  if (interactiveReplyId && !resolvedText) {
+    try {
+      const { data: menus } = await supabaseAdmin()
+        .from('messages')
+        .select('interactive_payload')
+        .eq('conversation_id', conversation.id)
+        .eq('content_type', 'interactive')
+        .not('interactive_payload', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      for (const menu of menus ?? []) {
+        const p = menu.interactive_payload as {
+          buttons?: { id?: string; title?: string }[]
+          sections?: { rows?: { id?: string; title?: string }[] }[]
+        } | null
+        const choices = [
+          ...(p?.buttons ?? []),
+          ...(p?.sections ?? []).flatMap((s) => s.rows ?? []),
+        ]
+        const hit = choices.find((c) => c.id === interactiveReplyId)
+        if (hit?.title) {
+          resolvedText = hit.title
+          break
+        }
+      }
+    } catch (err) {
+      console.warn('[uazapi webhook] tapped-choice title lookup failed:', err instanceof Error ? err.message : err)
+    }
+  }
+
   const { error: msgError } = await supabaseAdmin().from('messages').insert({
     conversation_id: conversation.id,
     sender_type: 'customer',
     content_type: interactiveReplyId ? 'interactive' : contentType,
-    content_text: contentText,
+    content_text: resolvedText,
     media_url: mediaUrl,
     message_id: message.id,
     status: 'delivered',
@@ -426,7 +462,7 @@ async function processMessage(
   await supabaseAdmin()
     .from('conversations')
     .update({
-      last_message_text: contentText || `[${contentType}]`,
+      last_message_text: resolvedText || `[${contentType}]`,
       last_message_at: new Date().toISOString(),
       unread_count: (conversation.unread_count || 0) + 1,
       updated_at: new Date().toISOString(),
@@ -457,7 +493,7 @@ async function processMessage(
           conversation_id: conversation.id,
           contact_id: contactRecord.id,
           title: 'New message in your conversation',
-          body: `${contactRecord.name || senderPhone}: ${(contentText || `[${contentType}]`).slice(0, 120)}`,
+          body: `${contactRecord.name || senderPhone}: ${(resolvedText || `[${contentType}]`).slice(0, 120)}`,
         })
         if (notifErr) console.error('[notifications] new_message_assigned insert failed:', notifErr.message)
       }
@@ -475,15 +511,15 @@ async function processMessage(
       ? {
           kind: 'interactive_reply',
           reply_id: interactiveReplyId,
-          reply_title: contentText ?? '',
+          reply_title: resolvedText ?? '',
           meta_message_id: message.id,
         }
-      : { kind: 'text', text: contentText ?? '', meta_message_id: message.id },
+      : { kind: 'text', text: resolvedText ?? '', meta_message_id: message.id },
     isFirstInboundMessage,
   })
   const flowConsumed = flowResult.consumed
 
-  const inboundText = contentText ?? ''
+  const inboundText = resolvedText ?? ''
   const automationTriggers: (
     | 'new_contact_created'
     | 'first_inbound_message'
@@ -529,7 +565,7 @@ async function processMessage(
     contact_id: contactRecord.id,
     whatsapp_message_id: message.id,
     content_type: contentType,
-    text: contentText,
+    text: resolvedText,
   })
 }
 

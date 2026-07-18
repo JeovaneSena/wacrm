@@ -228,3 +228,31 @@ html[data-theme="rose"] {
     @apply font-sans;
   }
 }
+/* ============================================================
+   Thin, theme-aware scrollbars for native-overflow containers
+   (message thread, dialogs). The shadcn ScrollArea draws its own
+   thumb and is unaffected. Browser default was a heavy dark bar
+   that dominated the chat visually.
+   ============================================================ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}

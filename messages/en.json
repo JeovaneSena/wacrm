@@ -287,7 +287,12 @@
       "deals": "Deals",
       "noTags": "No tags",
       "noDeals": "No deals",
-      "addNotePlaceholder": "Add a note..."
+      "addNotePlaceholder": "Add a note...",
+      "addTag": "Add tag",
+      "removeTag": "Click to remove",
+      "noTagsAccount": "No tags yet — create them in Settings",
+      "addDeal": "Create deal",
+      "customerSince": "Customer since"
     },
     "aiBanner": {
       "pausedTitle": "AI assistant is paused here",

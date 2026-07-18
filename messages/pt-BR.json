@@ -287,7 +287,12 @@
       "deals": "Negócios",
       "noTags": "Sem etiquetas",
       "noDeals": "Sem negócios",
-      "addNotePlaceholder": "Adicionar uma nota..."
+      "addNotePlaceholder": "Adicionar uma nota...",
+      "addTag": "Adicionar etiqueta",
+      "removeTag": "Clique para remover",
+      "noTagsAccount": "Nenhuma etiqueta criada — crie em Configurações",
+      "addDeal": "Criar negócio",
+      "customerSince": "Cliente desde"
     },
     "aiBanner": {
       "pausedTitle": "O assistente de IA está pausado aqui",

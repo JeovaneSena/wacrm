@@ -712,6 +712,21 @@ export function MessageComposer({
             )}
           />
 
+          {/* Standalone mic — the recorder also lives in the paperclip
+              menu, but buried there nobody found it. WhatsApp-style
+              affordance: mic next to send. */}
+          <GatedButton
+            variant="ghost"
+            size="sm"
+            canAct={!readOnly}
+            gateReason="send messages"
+            title={readOnly ? undefined : t("voiceNote")}
+            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-primary"
+            onClick={() => void startRecording()}
+          >
+            <Mic className="h-4 w-4" />
+          </GatedButton>
+
           <GatedButton
             size="sm"
             canAct={!readOnly}

@@ -23,6 +23,11 @@ import { cn } from "@/lib/utils";
 // across reloads and sessions (device-scoped, like the theme prefs).
 const CONTACT_PANEL_STORAGE_KEY = "senacrm:inbox:contact-panel-open";
 
+// Remembers the last-open conversation so navigating to another tab and
+// back (the sidebar link is a bare /inbox with no ?c=) reopens the same
+// thread instead of dropping the agent on the empty state.
+const LAST_CONVERSATION_STORAGE_KEY = "senacrm:inbox:last-conversation";
+
 export default function InboxPage() {
   const t = useTranslations("Inbox.page");
   const router = useRouter();
@@ -32,7 +37,14 @@ export default function InboxPage() {
    * dashboard's recent-conversations list so the right thread opens
    * automatically instead of showing the empty center panel.
    */
-  const deepLinkConvId = searchParams.get("c");
+  // `?c=` wins; without it, fall back to the device-remembered last
+  // conversation so the sidebar's bare /inbox link doesn't reset the
+  // selection every time the agent bounces between tabs.
+  const deepLinkConvId =
+    searchParams.get("c") ??
+    (typeof window !== "undefined"
+      ? localStorage.getItem(LAST_CONVERSATION_STORAGE_KEY)
+      : null);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] =
@@ -471,6 +483,13 @@ export default function InboxPage() {
       // sees `ref !== deepLinkConvId`, fires a second time, and
       // clobbers the messages MessageThread just fetched.
       autoSelectedForDeepLinkRef.current = conv.id;
+      // Device-scoped memory of the selection — restores the thread
+      // when the user comes back via the bare /inbox sidebar link.
+      try {
+        localStorage.setItem(LAST_CONVERSATION_STORAGE_KEY, conv.id);
+      } catch {
+        // Storage unavailable (private mode) — selection just won't persist.
+      }
       // Reflect the selection in the URL so a refresh lands the user
       // back in the same thread, and so copy-paste links work. Use
       // replace() to avoid polluting browser history with every click.
@@ -504,6 +523,11 @@ export default function InboxPage() {
     // Clearing the ref lets the deep-link auto-selector fire again if
     // the user later visits /inbox?c=<same-id> — desirable UX.
     autoSelectedForDeepLinkRef.current = null;
+    try {
+      localStorage.removeItem(LAST_CONVERSATION_STORAGE_KEY);
+    } catch {
+      // Storage unavailable — nothing to clear.
+    }
     router.replace("/inbox", { scroll: false });
   }, [router]);
 

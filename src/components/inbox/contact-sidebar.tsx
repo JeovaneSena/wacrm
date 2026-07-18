@@ -4,13 +4,22 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import type {
+  Contact,
+  CustomField,
+  Deal,
+  ContactNote,
+  PipelineStage,
+  Tag,
+} from "@/types";
 import {
   Phone,
   Mail,
   Copy,
   Check,
   User,
+  Building2,
+  CalendarDays,
   Tag as TagIcon,
   DollarSign,
   StickyNote,
@@ -18,6 +27,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { DealForm } from "@/components/pipelines/deal-form";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useTranslations } from "next-intl";
@@ -38,28 +54,46 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
+  // Account-wide tag list for the add-tag dropdown, plus custom-field
+  // values (read-only surface; editing stays in the Contacts tab).
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
+
+  // "Add deal" reuses the pipelines DealForm — it needs the pipeline +
+  // its stages, fetched lazily the first time the button is clicked.
+  const [dealFormOpen, setDealFormOpen] = useState(false);
+  const [pipelineId, setPipelineId] = useState<string>("");
+  const [stages, setStages] = useState<PipelineStage[]>([]);
+
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
 
     const supabase = createClient();
 
-    // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes] = await Promise.all([
-      supabase
-        .from("deals")
-        .select("*, stage:pipeline_stages(*)")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("contact_notes")
-        .select("*")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("contact_tags")
-        .select("id, tag_id, tags(*)")
-        .eq("contact_id", contact.id),
-    ]);
+    const [dealsRes, notesRes, tagsRes, allTagsRes, fieldsRes, valuesRes] =
+      await Promise.all([
+        supabase
+          .from("deals")
+          .select("*, stage:pipeline_stages(*)")
+          .eq("contact_id", contact.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("contact_notes")
+          .select("*")
+          .eq("contact_id", contact.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("contact_tags")
+          .select("id, tag_id, tags(*)")
+          .eq("contact_id", contact.id),
+        supabase.from("tags").select("*").order("name"),
+        supabase.from("custom_fields").select("*").order("field_name"),
+        supabase
+          .from("contact_custom_values")
+          .select("*")
+          .eq("contact_id", contact.id),
+      ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
@@ -72,7 +106,63 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         }));
       setTags(mapped);
     }
+    if (allTagsRes.data) setAllTags(allTagsRes.data);
+    if (fieldsRes.data) setCustomFields(fieldsRes.data);
+    if (valuesRes.data) {
+      const map: Record<string, string> = {};
+      for (const v of valuesRes.data) map[v.custom_field_id] = v.value ?? "";
+      setCustomValues(map);
+    }
   }, [contact]);
+
+  const handleToggleTag = useCallback(
+    async (tag: Tag) => {
+      if (!contact || !accountId) return;
+      const supabase = createClient();
+      const existing = tags.find((t) => t.id === tag.id);
+      if (existing) {
+        // Optimistic remove.
+        setTags((prev) => prev.filter((t) => t.id !== tag.id));
+        const { error } = await supabase
+          .from("contact_tags")
+          .delete()
+          .eq("id", existing.contact_tag_id);
+        if (error) fetchContactData();
+      } else {
+        const { data, error } = await supabase
+          .from("contact_tags")
+          .insert({ contact_id: contact.id, tag_id: tag.id })
+          .select("id")
+          .single();
+        if (!error && data) {
+          setTags((prev) => [...prev, { ...tag, contact_tag_id: data.id }]);
+        }
+      }
+    },
+    [contact, accountId, tags, fetchContactData],
+  );
+
+  const handleOpenDealForm = useCallback(async () => {
+    const supabase = createClient();
+    // Lazy-load the first pipeline + stages once; reuse afterwards.
+    if (!pipelineId) {
+      const { data: pipelines } = await supabase
+        .from("pipelines")
+        .select("id")
+        .order("created_at")
+        .limit(1);
+      const pid = pipelines?.[0]?.id;
+      if (!pid) return; // no pipeline yet — Funis tab seeds one on first visit
+      const { data: stageRows } = await supabase
+        .from("pipeline_stages")
+        .select("*")
+        .eq("pipeline_id", pid)
+        .order("position");
+      setPipelineId(pid);
+      setStages(stageRows ?? []);
+    }
+    setDealFormOpen(true);
+  }, [pipelineId]);
 
   // Load on contact change. setContactData/setTags run inside async
   // Supabase callbacks, not synchronously in the effect body.
@@ -171,38 +261,101 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               )}
             </button>
 
-            {contact.email && (
-              <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="truncate">{contact.email}</span>
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
+              <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="truncate">{contact.email || "—"}</span>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
+              <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="truncate">{contact.company || "—"}</span>
+            </div>
+
+            {contact.created_at && (
+              <div
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground"
+                title={tSidebar("customerSince")}
+              >
+                <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">
+                  {tSidebar("customerSince")}{" "}
+                  {format(new Date(contact.created_at), "d MMM yyyy", { locale: ptBR })}
+                </span>
               </div>
             )}
+
+            {/* Custom fields with a value — read-only surface here;
+                editing lives in the Contacts tab detail view. */}
+            {customFields
+              .filter((f) => customValues[f.id])
+              .map((f) => (
+                <div
+                  key={f.id}
+                  className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground"
+                >
+                  <span className="block text-[10px] uppercase tracking-wider">
+                    {f.field_name}
+                  </span>
+                  <span className="truncate text-foreground">{customValues[f.id]}</span>
+                </div>
+              ))}
           </div>
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 
-          {/* Tags */}
+          {/* Tags — click a pill to remove, "+" to add from the
+              account's tag list. */}
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <TagIcon className="h-3 w-3" />
-              {tSidebar("tags")}
+              <span className="flex-1">{tSidebar("tags")}</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  title={tSidebar("addTag")}
+                  className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Plus className="h-3 w-3" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="border-border bg-popover">
+                  {allTags.length === 0 ? (
+                    <DropdownMenuItem disabled>{tSidebar("noTagsAccount")}</DropdownMenuItem>
+                  ) : (
+                    allTags.map((tag) => {
+                      const active = tags.some((t) => t.id === tag.id);
+                      return (
+                        <DropdownMenuItem key={tag.id} onClick={() => handleToggleTag(tag)}>
+                          <span
+                            className="mr-2 h-2 w-2 rounded-full"
+                            style={{ backgroundColor: tag.color }}
+                          />
+                          <span className="flex-1">{tag.name}</span>
+                          {active && <Check className="ml-2 h-3 w-3 text-primary" />}
+                        </DropdownMenuItem>
+                      );
+                    })
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {tags.length === 0 ? (
                 <p className="px-1 text-xs text-muted-foreground">{tSidebar("noTags")}</p>
               ) : (
                 tags.map((tag) => (
-                  <span
+                  <button
                     key={tag.contact_tag_id}
-                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    type="button"
+                    onClick={() => handleToggleTag(tag)}
+                    title={tSidebar("removeTag")}
+                    className="rounded-full px-2 py-0.5 text-[10px] font-medium transition-opacity hover:opacity-70"
                     style={{
                       backgroundColor: `${tag.color}20`,
                       color: tag.color,
                     }}
                   >
                     {tag.name}
-                  </span>
+                  </button>
                 ))
               )}
             </div>
@@ -215,7 +368,15 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <DollarSign className="h-3 w-3" />
-              {tSidebar("deals")}
+              <span className="flex-1">{tSidebar("deals")}</span>
+              <button
+                type="button"
+                onClick={() => void handleOpenDealForm()}
+                title={tSidebar("addDeal")}
+                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
             </div>
             <div className="mt-2 space-y-2">
               {deals.length === 0 ? (
@@ -299,6 +460,21 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           </div>
         </div>
       </ScrollArea>
+
+      {/* "Add deal" — pipelines' DealForm, pre-linked to this contact. */}
+      {pipelineId && stages.length > 0 && (
+        <DealForm
+          open={dealFormOpen}
+          onOpenChange={setDealFormOpen}
+          pipelineId={pipelineId}
+          stages={stages}
+          defaultContactId={contact.id}
+          onSaved={() => {
+            setDealFormOpen(false);
+            fetchContactData();
+          }}
+        />
+      )}
     </div>
   );
 }
