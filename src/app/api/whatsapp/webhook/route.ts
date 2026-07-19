@@ -647,10 +647,28 @@ function parseMessageContent(message: UazapiMessage): {
 
   // ptt (voice note) renders identically to audio in the inbox;
   // sticker is first-class since migration 040 (frameless render).
-  const contentType =
+  let contentType =
     message.mediaType === 'ptt' ? 'audio'
     : ALLOWED_CONTENT_TYPES.has(message.mediaType) ? message.mediaType
-    : 'text'
+    : ''
+
+  // fromMe echoes (and possibly other variants) carry mediaType values
+  // outside the known set — fall back to the raw Baileys messageType
+  // name. A media message must NEVER collapse to 'text': the text
+  // bubble ignores media_url entirely and renders empty.
+  if (!contentType) {
+    const raw = (message.messageType || '').toLowerCase()
+    contentType =
+      raw.includes('sticker') ? 'sticker'
+      : raw.includes('image') ? 'image'
+      : raw.includes('video') ? 'video'
+      : raw.includes('audio') || raw.includes('ptt') ? 'audio'
+      : raw.includes('document') ? 'document'
+      : 'document'
+    console.warn(
+      `[uazapi webhook] unrecognized mediaType "${message.mediaType}" (messageType "${message.messageType}") — stored as ${contentType}`,
+    )
+  }
 
   return {
     contentText: message.text || null,
