@@ -202,6 +202,7 @@
       "reactionFailed": "Reaction failed: {reason}",
       "failedAssign": "Failed to update assignment",
       "mediaLightboxTitle": "Media preview",
+      "downloadMedia": "Download",
       "documentFallback": "Document"
     },
     "composer": {
@@ -257,7 +258,8 @@
       "sourceBotTitle": "Sent automatically by a flow or automation",
       "audioPlay": "Play",
       "audioPause": "Pause",
-      "audioSeek": "Seek"
+      "audioSeek": "Seek",
+      "sticker": "Sticker"
     },
     "actions": {
       "reply": "Reply",

@@ -357,13 +357,75 @@ async function processMessage(
     })
   }
 
-  // Reactions — best-effort, unconfirmed payload shape (see file-top
-  // comment). Skip rather than risk mis-storing garbage.
+  // Reactions — best-effort: resolve the reacted-to message by trying
+  // the id fields most likely to reference it, then upsert into
+  // message_reactions (empty emoji = the customer removed their
+  // reaction). When the target can't be resolved, log the full event
+  // so the real payload shape can be read off production logs.
   if (message.messageType === 'ReactionMessage' || message.reaction) {
-    console.warn(
-      '[uazapi webhook] reaction event received but shape is unconfirmed — skipping',
-      message.id
-    )
+    try {
+      const quoted = (message.quoted ?? {}) as Record<string, unknown>
+      const quotedKey = quoted.key as Record<string, unknown> | undefined
+      const candidates = [
+        quoted.id,
+        quoted.message_id,
+        quoted.messageid,
+        quoted.stanzaId,
+        quotedKey?.id,
+        message.messageid,
+        message.id,
+      ].filter((v): v is string => typeof v === 'string' && v.length > 0)
+
+      let targetId: string | null = null
+      for (const cand of candidates) {
+        const { data } = await supabaseAdmin()
+          .from('messages')
+          .select('id')
+          .eq('conversation_id', conversation.id)
+          .or(`message_id.eq.${cand},message_id.like.%:${cand}`)
+          .limit(1)
+          .maybeSingle()
+        if (data) {
+          targetId = data.id
+          break
+        }
+      }
+
+      if (!targetId) {
+        console.warn('[uazapi webhook] reaction target not resolved — payload:', JSON.stringify(message))
+        return
+      }
+
+      const emoji = (message.reaction ?? '').trim()
+      if (!emoji) {
+        // Reaction removed.
+        await supabaseAdmin()
+          .from('message_reactions')
+          .delete()
+          .eq('message_id', targetId)
+          .eq('actor_type', 'customer')
+          .is('actor_id', null)
+      } else {
+        // Delete-then-insert instead of upsert: the UNIQUE index treats
+        // NULL actor_id rows as distinct, so ON CONFLICT never matches
+        // the customer's (actor_id IS NULL) row and would duplicate.
+        await supabaseAdmin()
+          .from('message_reactions')
+          .delete()
+          .eq('message_id', targetId)
+          .eq('actor_type', 'customer')
+          .is('actor_id', null)
+        await supabaseAdmin().from('message_reactions').insert({
+          message_id: targetId,
+          conversation_id: conversation.id,
+          actor_type: 'customer',
+          actor_id: null,
+          emoji,
+        })
+      }
+    } catch (err) {
+      console.error('[uazapi webhook] reaction handling failed:', err instanceof Error ? err.message : err)
+    }
     return
   }
 
@@ -570,7 +632,7 @@ async function processMessage(
 }
 
 const ALLOWED_CONTENT_TYPES = new Set([
-  'text', 'image', 'document', 'audio', 'video', 'location', 'template', 'interactive',
+  'text', 'image', 'document', 'audio', 'video', 'location', 'template', 'interactive', 'sticker',
 ])
 
 /** uazapi mediaType → our content_type + `/api/whatsapp/media/:id` proxy URL. */
@@ -583,12 +645,10 @@ function parseMessageContent(message: UazapiMessage): {
     return { contentText: message.text || null, mediaUrl: null, contentType: 'text' }
   }
 
-  // sticker/ptt aren't valid `messages.content_type` values (CHECK
-  // constraint) — map to their closest allowed type. ptt (voice note)
-  // and audio both render the same way in the inbox.
+  // ptt (voice note) renders identically to audio in the inbox;
+  // sticker is first-class since migration 040 (frameless render).
   const contentType =
-    message.mediaType === 'sticker' ? 'image'
-    : message.mediaType === 'ptt' ? 'audio'
+    message.mediaType === 'ptt' ? 'audio'
     : ALLOWED_CONTENT_TYPES.has(message.mediaType) ? message.mediaType
     : 'text'
 

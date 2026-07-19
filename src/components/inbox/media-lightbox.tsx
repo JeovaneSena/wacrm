@@ -1,7 +1,29 @@
 "use client";
 
+import { Download } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
+
+/** Fetch the media (blob URLs resolve locally, proxy URLs re-fetch
+ *  with the session cookie) and trigger a browser download. */
+async function downloadMedia(src: string, kind: "image" | "video") {
+  try {
+    const res = await fetch(src);
+    const blob = await res.blob();
+    const ext =
+      blob.type.split("/")[1]?.split(";")[0] || (kind === "image" ? "jpg" : "mp4");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${kind === "image" ? "imagem" : "video"}-${Date.now()}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch {
+    // Non-essential — a failed download shouldn't throw UI errors.
+  }
+}
 
 interface MediaLightboxProps {
   open: boolean;
@@ -28,6 +50,16 @@ export function MediaLightbox({ open, onOpenChange, kind, src, alt }: MediaLight
         {/* Visually hidden — DialogContent requires a title for a11y,
             but a lightbox has no natural heading to show. */}
         <DialogTitle className="sr-only">{t("mediaLightboxTitle")}</DialogTitle>
+        <Button
+          variant="secondary"
+          size="icon-sm"
+          className="absolute top-2 left-2 z-10"
+          title={t("downloadMedia")}
+          onClick={() => void downloadMedia(src, kind)}
+        >
+          <Download className="h-4 w-4" />
+          <span className="sr-only">{t("downloadMedia")}</span>
+        </Button>
         {kind === "image" ? (
           // eslint-disable-next-line @next/next/no-img-element -- already-fetched blob/remote URL, no next/image benefit here
           <img

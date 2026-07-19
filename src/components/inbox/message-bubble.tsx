@@ -138,6 +138,54 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   );
 }
 
+/** Frameless sticker — same auth-proxy blob fetch as MediaImage, but
+ *  rendered at sticker size with no bubble, no cover-crop, no lightbox. */
+function StickerImage({ url, alt }: { url: string; alt: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    (async () => {
+      if (!url.startsWith("/api/whatsapp/media/")) {
+        setSrc(url);
+        return;
+      }
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to load media");
+        const blob = await res.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) setSrc(objectUrl);
+      } catch {
+        if (!cancelled) setError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url]);
+
+  if (error) {
+    return (
+      <div className="flex h-36 w-36 items-center justify-center rounded-lg bg-muted">
+        <ImageOff className="h-8 w-8 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!src) {
+    return <div className="h-36 w-36 animate-pulse rounded-lg bg-muted/50" />;
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- blob URL, no next/image benefit
+    <img src={src} alt={alt} className="h-36 w-36 object-contain" />
+  );
+}
+
 function MediaVideo({ url, alt }: { url: string; alt: string }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
@@ -188,6 +236,17 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
               {message.content_text}
             </p>
+          )}
+        </div>
+      );
+
+    case "sticker":
+      return (
+        <div>
+          {message.media_url ? (
+            <StickerImage url={message.media_url} alt={t("sticker")} />
+          ) : (
+            <MediaUnavailable label={t("sticker")} t={t} />
           )}
         </div>
       );
@@ -313,6 +372,9 @@ export function MessageBubble({
 
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
   const time = format(new Date(message.created_at), "HH:mm");
+  // Stickers render frameless, WhatsApp-style — no bubble fill, no
+  // padding; the artwork IS the message.
+  const isSticker = message.content_type === "sticker";
 
   // Row alignment + width cap are owned by <MessageActions> so its hover
   // group matches the bubble's content area, not the full row.
@@ -325,10 +387,15 @@ export function MessageBubble({
     >
       <div
         className={cn(
-          "relative rounded-2xl px-3 py-2",
-          isAgent
-            ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md bg-muted text-foreground",
+          "relative rounded-2xl",
+          isSticker
+            ? "bg-transparent p-0"
+            : cn(
+                "px-3 py-2",
+                isAgent
+                  ? "rounded-br-md bg-primary text-primary-foreground"
+                  : "rounded-bl-md bg-muted text-foreground",
+              ),
         )}
       >
         {reply && (
@@ -396,8 +463,11 @@ export function MessageBubble({
               // Outbound bubbles sit on the primary fill, so the
               // timestamp must read against that (not the neutral
               // foreground) — otherwise it goes low-contrast in light
-              // mode. Inbound bubbles use the muted surface.
-              isAgent ? "text-primary-foreground/70" : "text-muted-foreground",
+              // mode. Inbound bubbles use the muted surface. Stickers
+              // have no fill at all, so both directions read muted.
+              isAgent && !isSticker
+                ? "text-primary-foreground/70"
+                : "text-muted-foreground",
             )}
           >
             {time}

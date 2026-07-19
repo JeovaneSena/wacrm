@@ -6,11 +6,18 @@ import type { Conversation } from "@/types";
 
 /**
  * Count of conversations with at least one unread inbound message for
- * the current user. Used by the sidebar to surface a green dot on the
- * Inbox nav entry when the user is elsewhere in the app.
+ * the current user. Drives the sidebar badge, the tab-title/favicon
+ * counter, and the unread ping sound.
  *
  * Lives on its own realtime channel (distinct from the inbox page's
  * "inbox-realtime") so both can coexist without sharing state.
+ *
+ * Realtime alone is not enough: a dropped WebSocket or a throttled
+ * background tab silently loses UPDATE events and the count freezes at
+ * a stale value (users saw a "9+" badge with zero unread rows in the
+ * DB). So the full recount also re-runs on tab-visible / window-focus
+ * and whenever the channel (re)subscribes — same safety-net idea the
+ * inbox page uses with its resync token.
  */
 export function useTotalUnread(): number {
   const [total, setTotal] = useState(0);
@@ -23,9 +30,9 @@ export function useTotalUnread(): number {
     const supabase = createClient();
     let cancelled = false;
 
-    // Initial load. RLS scopes this to the signed-in user automatically —
+    // Full recount. RLS scopes this to the signed-in user automatically —
     // no explicit user_id filter needed here.
-    (async () => {
+    const refetch = async () => {
       const { data, error } = await supabase
         .from("conversations")
         .select("id, unread_count");
@@ -40,7 +47,9 @@ export function useTotalUnread(): number {
       }
       countsRef.current = map;
       setTotal(sum);
-    })();
+    };
+
+    void refetch();
 
     const channel = supabase
       .channel("total-unread-realtime")
@@ -62,10 +71,23 @@ export function useTotalUnread(): number {
           setTotal(sum);
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        // A (re)subscribe means we may have missed events while the
+        // socket was down — recount from the source of truth.
+        if (status === "SUBSCRIBED") void refetch();
+      });
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refetch();
+    };
+    const onFocus = () => void refetch();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
       supabase.removeChannel(channel);
     };
   }, []);

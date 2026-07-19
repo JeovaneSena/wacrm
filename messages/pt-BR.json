@@ -202,6 +202,7 @@
       "reactionFailed": "Falha na reação: {reason}",
       "failedAssign": "Falha ao atualizar a atribuição",
       "mediaLightboxTitle": "Visualização de mídia",
+      "downloadMedia": "Baixar",
       "documentFallback": "Documento"
     },
     "composer": {
@@ -257,7 +258,8 @@
       "sourceBotTitle": "Enviado automaticamente por fluxo ou automação",
       "audioPlay": "Reproduzir",
       "audioPause": "Pausar",
-      "audioSeek": "Avançar/retroceder"
+      "audioSeek": "Avançar/retroceder",
+      "sticker": "Figurinha"
     },
     "actions": {
       "reply": "Responder",
