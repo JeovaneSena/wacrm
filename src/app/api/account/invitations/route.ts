@@ -147,7 +147,7 @@ export async function GET() {
     const { data, error } = await ctx.supabase
       .from("account_invitations")
       .select(
-        "id, role, label, created_by_user_id, created_at, expires_at, accepted_at, accepted_by_user_id",
+        "id, role, kind, label, created_by_user_id, created_at, expires_at, accepted_at, accepted_by_user_id",
       )
       .eq("account_id", ctx.accountId)
       .is("accepted_at", null)
@@ -183,10 +183,16 @@ export async function POST(request: Request) {
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = (await request.json().catch(() => null)) as
-      | { role?: unknown; expiresInDays?: unknown; label?: unknown }
+      | { role?: unknown; expiresInDays?: unknown; label?: unknown; kind?: unknown }
       | null;
 
-    const role = body?.role;
+    // 'member' joins THIS account with `role`; 'new_account' only
+    // authorizes signup — the invitee gets their own independent
+    // workspace and `role` is irrelevant (stored as 'agent' to satisfy
+    // the NOT NULL column, never applied).
+    const kind = body?.kind === "new_account" ? "new_account" : "member";
+
+    const role = kind === "new_account" ? "agent" : body?.role;
     if (!isAccountRole(role) || role === "owner") {
       // The DB CHECK already rejects 'owner', but failing fast
       // here gives a clearer 400 than the eventual constraint
@@ -226,11 +232,12 @@ export async function POST(request: Request) {
         account_id: ctx.accountId,
         token_hash: hash,
         role,
+        kind,
         created_by_user_id: ctx.userId,
         label,
         expires_at: expiresAt.toISOString(),
       })
-      .select("id, role, label, expires_at, created_at")
+      .select("id, role, kind, label, expires_at, created_at")
       .single();
 
     if (error || !data) {

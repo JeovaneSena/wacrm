@@ -96,5 +96,19 @@ export async function POST(request: Request) {
     )
   }
 
-  return NextResponse.json({ success: true, user_id: created.user?.id })
+  // 'new_account' invites only authorize signup — the personal account
+  // the handle_new_user trigger just created IS the final workspace, so
+  // consume the invite here (member invites are consumed at redeem).
+  if (peek.kind === 'new_account') {
+    const { error: consumeErr } = await supabaseAdmin()
+      .from('account_invitations')
+      .update({ accepted_at: new Date().toISOString(), accepted_by_user_id: created.user?.id ?? null })
+      .eq('token_hash', hashInviteToken(token))
+      .is('accepted_at', null)
+    if (consumeErr) {
+      console.error('[signup] failed to consume new_account invite:', consumeErr.message)
+    }
+  }
+
+  return NextResponse.json({ success: true, user_id: created.user?.id, kind: peek.kind ?? 'member' })
 }

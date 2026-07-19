@@ -58,6 +58,9 @@ interface PeekOk {
   ok: true;
   account_name: string;
   role: 'admin' | 'agent' | 'viewer';
+  /** 'member' joins the inviter's account; 'new_account' authorizes
+   *  creating an independent workspace (handled on /signup). */
+  kind?: 'member' | 'new_account';
   expires_at: string;
 }
 interface PeekFail {
@@ -193,6 +196,23 @@ export default function JoinPage() {
 
   // ----- Loading state (peek pending OR auth not yet resolved) -----
   if (peek === null || authedUserId === undefined) {
+    return (
+      <Card className="w-full max-w-md border-border bg-card">
+        <CardContent className="flex flex-col items-center gap-3 py-12">
+          <Loader2 className="size-6 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">{t('verifying')}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ----- New-account invite: this page is for joining the inviter's
+  // team; a workspace-creation invite is handled entirely by /signup.
+  // Redirect there carrying the token. -----
+  if (peek.ok && peek.kind === 'new_account') {
+    if (typeof window !== 'undefined') {
+      window.location.replace(`/signup?invite=${encodeURIComponent(token ?? '')}`);
+    }
     return (
       <Card className="w-full max-w-md border-border bg-card">
         <CardContent className="flex flex-col items-center gap-3 py-12">

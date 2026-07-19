@@ -1127,7 +1127,8 @@
       "transferDialogDesc": "Você vai tornar <bold>{name}</bold> o novo proprietário da conta e passará a ser administrador. Só o novo proprietário poderá reverter isso. Continuar?",
       "transferring": "Transferindo…",
       "transferBtn": "Transferir propriedade",
-      "transferredToast": "{name} agora é o proprietário da conta."
+      "transferredToast": "{name} agora é o proprietário da conta.",
+      "kindNewAccountBadge": "Conta nova"
     },
     "invite": {
       "inviteCreated": "Convite criado",
@@ -1157,7 +1158,13 @@
       "clipboardBlocked": "Área de transferência bloqueada — copie o link manualmente",
       "whatsappMessage": "Junte-se a {accountName} no CRM SenaAutomações usando este link (válido por {expiresInDays} dias): {url}",
       "errServer": "Não foi possível conectar ao servidor. Tentar de novo?",
-      "genericAccountName": "sua conta no CRM SenaAutomações"
+      "genericAccountName": "sua conta no CRM SenaAutomações",
+      "kindLabel": "Tipo de convite",
+      "kindMember": "Membro da equipe",
+      "kindMemberDesc": "Entra na SUA conta e vê suas conversas.",
+      "kindNewAccount": "Conta nova",
+      "kindNewAccountDesc": "Cria um CRM independente, separado do seu.",
+      "inviteCreatedDescNewAccount": "Link de <bold>conta nova independente</bold> criado — válido por <bold>{days} dias</bold>. Quem usar terá um CRM próprio, sem acesso ao seu."
     },
     "tagsAndFields": {
       "title": "Campos & etiquetas",

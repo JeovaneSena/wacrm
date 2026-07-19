@@ -1127,7 +1127,8 @@
       "transferDialogDesc": "You will make <bold>{name}</bold> the new account owner and become an admin yourself. Only the new owner can reverse this. Continue?",
       "transferring": "Transferring…",
       "transferBtn": "Transfer ownership",
-      "transferredToast": "{name} is now the account owner."
+      "transferredToast": "{name} is now the account owner.",
+      "kindNewAccountBadge": "New account"
     },
     "invite": {
       "inviteCreated": "Invite created",
@@ -1157,7 +1158,13 @@
       "clipboardBlocked": "Clipboard blocked — copy the link manually",
       "whatsappMessage": "Join {accountName} on CRM SenaAutomações using this link (valid for {expiresInDays} days): {url}",
       "errServer": "Could not reach the server. Try again?",
-      "genericAccountName": "your CRM SenaAutomações account"
+      "genericAccountName": "your CRM SenaAutomações account",
+      "kindLabel": "Invite type",
+      "kindMember": "Team member",
+      "kindMemberDesc": "Joins YOUR account and sees your conversations.",
+      "kindNewAccount": "New account",
+      "kindNewAccountDesc": "Creates an independent CRM, separate from yours.",
+      "inviteCreatedDescNewAccount": "<bold>Independent new-account</bold> link created — valid for <bold>{days} days</bold>. Whoever uses it gets their own CRM with no access to yours."
     },
     "tagsAndFields": {
       "title": "Fields & tags",

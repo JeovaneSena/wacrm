@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import {
   AlertTriangle,
   Crown,
+  Sparkle,
   Loader2,
   Mail,
   MailX,
@@ -89,6 +90,7 @@ interface Member {
 interface Invitation {
   id: string;
   role: 'admin' | 'agent' | 'viewer';
+  kind?: 'member' | 'new_account';
   label: string | null;
   created_at: string;
   expires_at: string;
@@ -573,12 +575,19 @@ export function MembersTab() {
                           <span className="text-sm font-medium text-foreground">
                             {inv.label || t('untitledInvite')}
                           </span>
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${inviteRoleMeta.className}`}
-                          >
-                            <InviteRoleIcon className="size-3" />
-                            {tRoles(inv.role)}
-                          </span>
+                          {inv.kind === 'new_account' ? (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                              <Sparkle className="size-3" />
+                              {t('kindNewAccountBadge')}
+                            </span>
+                          ) : (
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${inviteRoleMeta.className}`}
+                            >
+                              <InviteRoleIcon className="size-3" />
+                              {tRoles(inv.role)}
+                            </span>
+                          )}
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {t('created', { date: fmtDate(inv.created_at) })} · {fmtExpiresIn(inv.expires_at, t)}

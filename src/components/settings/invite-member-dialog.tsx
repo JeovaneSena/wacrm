@@ -63,6 +63,7 @@ const MAX_LABEL_LEN = 80;
 interface CreatedInvite {
   url: string;
   role: InviteRole;
+  kind: 'member' | 'new_account';
   expiresInDays: number;
   /** Snapshotted at creation time so a later account rename can't
    *  retroactively change the wa.me message text on the result step. */
@@ -78,6 +79,7 @@ export function InviteMemberDialog({
   const tRoles = useTranslations('Settings.roles');
   const { account } = useAuth();
   const [role, setRole] = useState<InviteRole>('agent');
+  const [kind, setKind] = useState<'member' | 'new_account'>('member');
   const [expiry, setExpiry] = useState<string>('7');
   const [label, setLabel] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -85,6 +87,7 @@ export function InviteMemberDialog({
 
   function reset() {
     setRole('agent');
+    setKind('member');
     setExpiry('7');
     setLabel('');
     setResult(null);
@@ -110,6 +113,7 @@ export function InviteMemberDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           role,
+          kind,
           expiresInDays: Number(expiry),
           label: trimmedLabel || undefined,
         }),
@@ -129,6 +133,7 @@ export function InviteMemberDialog({
       setResult({
         url: data.url,
         role,
+        kind,
         expiresInDays: data.expiresInDays,
         // Snapshot the account name into the result so the wa.me
         // share message has team context. Falls back to a generic
@@ -189,11 +194,16 @@ export function InviteMemberDialog({
                 {t('inviteCreated')}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground">
-                {t.rich('inviteCreatedDesc', {
-                  role: tRoles(result.role),
-                  days: result.expiresInDays,
-                  bold: (chunks: React.ReactNode) => <strong>{chunks}</strong>
-                })}
+                {result.kind === 'new_account'
+                  ? t.rich('inviteCreatedDescNewAccount', {
+                      days: result.expiresInDays,
+                      bold: (chunks: React.ReactNode) => <strong>{chunks}</strong>,
+                    })
+                  : t.rich('inviteCreatedDesc', {
+                      role: tRoles(result.role),
+                      days: result.expiresInDays,
+                      bold: (chunks: React.ReactNode) => <strong>{chunks}</strong>,
+                    })}
               </DialogDescription>
             </DialogHeader>
 
@@ -267,6 +277,34 @@ export function InviteMemberDialog({
             </DialogHeader>
 
             <div className="space-y-4 py-2">
+              {/* Invite kind — join THIS team vs. spin up an
+                  independent workspace (signup pass). */}
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">{t('kindLabel')}</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['member', 'new_account'] as const).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setKind(k)}
+                      className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                        kind === k
+                          ? 'border-primary bg-primary/10 text-foreground'
+                          : 'border-border bg-muted text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <span className="block font-semibold">
+                        {t(k === 'member' ? 'kindMember' : 'kindNewAccount')}
+                      </span>
+                      <span className="mt-0.5 block">
+                        {t(k === 'member' ? 'kindMemberDesc' : 'kindNewAccountDesc')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {kind === 'member' && (
               <div className="space-y-2">
                 <Label className="text-muted-foreground">{t('roleLabel')}</Label>
                 <Select
@@ -286,6 +324,7 @@ export function InviteMemberDialog({
                   {tRoles(`${role}Hint` as 'adminHint' | 'agentHint' | 'viewerHint')}
                 </p>
               </div>
+              )}
 
               <div className="space-y-2">
                 <Label className="text-muted-foreground">{t('validForLabel')}</Label>

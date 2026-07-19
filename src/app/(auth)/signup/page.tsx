@@ -109,8 +109,10 @@ function SignupPageInner() {
         return;
       }
 
-      // Email is pre-confirmed by the admin API — sign in right away
-      // and land on the redeem step so the invite gets accepted.
+      // Email is pre-confirmed by the admin API — sign in right away.
+      // Member invites continue to the redeem step; new-account invites
+      // are already consumed server-side and the fresh personal account
+      // IS the workspace, so go straight to the app.
       const { error: signInErr } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -121,7 +123,11 @@ function SignupPageInner() {
         router.push(`/login?invite=${encodeURIComponent(inviteToken!)}`);
         return;
       }
-      router.push(`/join/${encodeURIComponent(inviteToken!)}`);
+      router.push(
+        data.kind === "new_account"
+          ? "/dashboard"
+          : `/join/${encodeURIComponent(inviteToken!)}`,
+      );
     } catch {
       setError(t("errCreate"));
       setLoading(false);
