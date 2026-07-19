@@ -25,6 +25,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   AlertTriangle,
+  Crown,
   Loader2,
   Mail,
   MailX,
@@ -127,7 +128,7 @@ function fmtExpiresIn(iso: string, t: (key: string, values?: Record<string, stri
 export function MembersTab() {
   const t = useTranslations('Settings.members');
   const tRoles = useTranslations('Settings.roles');
-  const { user, canManageMembers } = useAuth();
+  const { user, canManageMembers, isOwner } = useAuth();
   const { getPresence, getRow, now } = usePresence();
 
   const [members, setMembers] = useState<Member[]>([]);
@@ -136,6 +137,8 @@ export function MembersTab() {
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removingMember, setRemovingMember] = useState<Member | null>(null);
+  const [transferTarget, setTransferTarget] = useState<Member | null>(null);
+  const [transferring, setTransferring] = useState(false);
   const [pendingMemberAction, setPendingMemberAction] = useState<string | null>(
     null,
   );
@@ -251,6 +254,35 @@ export function MembersTab() {
       toast.error(t('errServer'));
     } finally {
       setPendingMemberAction(null);
+    }
+  }
+
+  async function handleTransferOwnership() {
+    if (!transferTarget) return;
+    setTransferring(true);
+    try {
+      const res = await fetch('/api/account/transfer-ownership', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newOwnerUserId: transferTarget.user_id }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || t('errServer'));
+        return;
+      }
+      toast.success(
+        t('transferredToast', { name: transferTarget.full_name || t('unnamed') }),
+      );
+      setTransferTarget(null);
+      // Roles flipped server-side (old owner → admin) — refetch so the
+      // roster and the caller's own capabilities reflect reality.
+      await loadEverything();
+    } catch (err) {
+      console.error('[MembersTab] transfer error:', err);
+      toast.error(t('errServer'));
+    } finally {
+      setTransferring(false);
     }
   }
 
@@ -454,6 +486,22 @@ export function MembersTab() {
                         user moused over. Now red is the default
                         state with a darker shade on hover so the
                         affordance reads at-a-glance. */}
+                    {/* Transfer ownership — owner only, on any other
+                        member's row. The backend RPC existed since 018
+                        but had no UI until now. */}
+                    {isOwner && !isOwnerRow && !isSelf && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setTransferTarget(member)}
+                        disabled={isBusy}
+                        title={t('transferOwnership')}
+                        className="border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:border-amber-500/60"
+                      >
+                        <Crown className="size-4" />
+                      </Button>
+                    )}
+
                     {canManageMembers && !isOwnerRow && !isSelf && (
                       <Button
                         variant="outline"
@@ -605,6 +653,54 @@ export function MembersTab() {
                 </>
               ) : (
                 t('removeBtn')
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer-ownership confirm — deliberately loud: this demotes
+          the current owner to admin and is only reversible by the new
+          owner transferring back. */}
+      <Dialog
+        open={transferTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setTransferTarget(null);
+        }}
+      >
+        <DialogContent className="bg-popover border-border sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-popover-foreground">
+              <Crown className="size-4 text-amber-400" />
+              {t('transferDialogTitle')}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {t.rich('transferDialogDesc', {
+                name: transferTarget?.full_name || t('unnamed'),
+                bold: (chunks: React.ReactNode) => <strong>{chunks}</strong>,
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="bg-popover border-border">
+            <Button
+              variant="outline"
+              onClick={() => setTransferTarget(null)}
+              className="border-border text-muted-foreground hover:bg-muted"
+            >
+              {t('cancel')}
+            </Button>
+            <Button
+              onClick={handleTransferOwnership}
+              disabled={transferring}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {transferring ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  {t('transferring')}
+                </>
+              ) : (
+                t('transferBtn')
               )}
             </Button>
           </DialogFooter>

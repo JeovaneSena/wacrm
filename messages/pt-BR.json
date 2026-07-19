@@ -1121,7 +1121,13 @@
       "cancel": "Cancelar",
       "removing": "Removendo...",
       "removeBtn": "Remover membro",
-      "errServer": "Não foi possível conectar ao servidor"
+      "errServer": "Não foi possível conectar ao servidor",
+      "transferOwnership": "Transferir propriedade",
+      "transferDialogTitle": "Transferir propriedade da conta",
+      "transferDialogDesc": "Você vai tornar <bold>{name}</bold> o novo proprietário da conta e passará a ser administrador. Só o novo proprietário poderá reverter isso. Continuar?",
+      "transferring": "Transferindo…",
+      "transferBtn": "Transferir propriedade",
+      "transferredToast": "{name} agora é o proprietário da conta."
     },
     "invite": {
       "inviteCreated": "Convite criado",
@@ -1150,7 +1156,8 @@
       "copied": "Link de convite copiado",
       "clipboardBlocked": "Área de transferência bloqueada — copie o link manualmente",
       "whatsappMessage": "Junte-se a {accountName} no CRM SenaAutomações usando este link (válido por {expiresInDays} dias): {url}",
-      "errServer": "Não foi possível conectar ao servidor. Tentar de novo?"
+      "errServer": "Não foi possível conectar ao servidor. Tentar de novo?",
+      "genericAccountName": "sua conta no CRM SenaAutomações"
     },
     "tagsAndFields": {
       "title": "Campos & etiquetas",
@@ -1498,7 +1505,8 @@
       "errReset": "Falha ao redefinir a configuração",
       "disconnected": "Instância do WhatsApp desconectada.",
       "errTokenCorrupted": "O token da instância salvo não pôde ser descriptografado.",
-      "errServerUnreachable": "Não foi possível conectar ao servidor."
+      "errServerUnreachable": "Não foi possível conectar ao servidor.",
+      "adminOnlyNotice": "Somente administradores podem configurar a conexão do WhatsApp."
     },
     "quickReplies": {
       "title": "Respostas rápidas",
@@ -1550,7 +1558,12 @@
     "creating": "Criando conta...",
     "createBtn": "Criar conta",
     "haveAccount": "Já tem uma conta?",
-    "signIn": "Entrar"
+    "signIn": "Entrar",
+    "inviteOnlyTitle": "Cadastro somente por convite",
+    "inviteOnlyDesc": "Este CRM não aceita cadastros abertos. Peça um link de convite a um administrador.",
+    "inviteInvalid": "Convite inválido, expirado ou já utilizado. Peça um novo link a um administrador.",
+    "errEmailTaken": "Este email já possui cadastro — faça login.",
+    "errCreate": "Falha ao criar a conta. Tente novamente."
   },
   "JoinInvite": {
     "verifying": "Verificando convite…",

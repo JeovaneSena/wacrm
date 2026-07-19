@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare, CheckCircle, UsersRound } from "lucide-react";
+import { Loader2, Lock, UsersRound } from "lucide-react";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -31,11 +31,11 @@ function SignupPageInner() {
   const t = useTranslations("AuthSignup");
   const router = useRouter();
   const searchParams = useSearchParams();
-  // When the user lands here from `/join/<token>` we carry the
-  // invite token in the query so it survives the signup → email
-  // verification → redirect round-trip. `emailRedirectTo` below
-  // points back at /join/<token> so the user lands on the redeem
-  // step after verifying instead of being dropped on /dashboard.
+  // Signup is INVITE-ONLY: the token from `/join/<token>` must be
+  // present AND validate against the peek endpoint before the form
+  // renders. Account creation goes through /api/auth/signup (which
+  // re-verifies the invite server-side and uses the admin API, since
+  // public GoTrue signup is disabled).
   const inviteToken = searchParams.get("invite");
 
   const [fullName, setFullName] = useState("");
@@ -44,8 +44,29 @@ function SignupPageInner() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState<
+    "missing" | "checking" | "valid" | "invalid"
+  >(inviteToken ? "checking" : "missing");
   const supabase = createClient();
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/invitations/${encodeURIComponent(inviteToken)}/peek`,
+        );
+        const data = await res.json();
+        if (!cancelled) setInviteStatus(data?.ok ? "valid" : "invalid");
+      } catch {
+        if (!cancelled) setInviteStatus("invalid");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,76 +84,70 @@ function SignupPageInner() {
 
     setLoading(true);
 
-    // If we have an invite token, point Supabase's verification
-    // email back at the join page so the user can accept after
-    // verifying. Without a token, Supabase uses its default
-    // redirect (the app root).
-    const emailRedirectTo = inviteToken
-      ? `${window.location.origin}/join/${encodeURIComponent(inviteToken)}`
-      : undefined;
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: inviteToken,
+          email,
+          password,
           full_name: fullName,
-        },
-        ...(emailRedirectTo ? { emailRedirectTo } : {}),
-      },
-    });
+        }),
+      });
+      const data = await res.json();
 
-    if (error) {
-      setError(error.message);
+      if (!res.ok) {
+        setError(
+          data.error === "email_taken"
+            ? t("errEmailTaken")
+            : data.error === "invalid_invite"
+              ? t("inviteInvalid")
+              : data.message || t("errCreate"),
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Email is pre-confirmed by the admin API — sign in right away
+      // and land on the redeem step so the invite gets accepted.
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInErr) {
+        // Account exists but sign-in failed (unlikely) — send them to
+        // the login page carrying the invite.
+        router.push(`/login?invite=${encodeURIComponent(inviteToken!)}`);
+        return;
+      }
+      router.push(`/join/${encodeURIComponent(inviteToken!)}`);
+    } catch {
+      setError(t("errCreate"));
       setLoading(false);
-      return;
     }
-
-    // With email confirmation disabled (mailer_autoconfirm), signUp
-    // returns a live session right away — the "check your email"
-    // screen would be a dead end. Send the user straight to the
-    // redeem step (invite) or the app. Only fall through to the
-    // check-email screen when confirmation is actually required
-    // (no session yet).
-    if (data.session) {
-      router.push(
-        inviteToken
-          ? `/join/${encodeURIComponent(inviteToken)}`
-          : "/dashboard",
-      );
-      return;
-    }
-
-    setSuccess(true);
-    setLoading(false);
   };
 
-  if (success) {
+  // No token / invalid token — signup is closed to the public.
+  if (inviteStatus === "missing" || inviteStatus === "invalid") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md border-border bg-card">
           <CardHeader className="items-center text-center">
             <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <CheckCircle className="h-6 w-6 text-primary" />
+              <Lock className="h-6 w-6 text-primary" />
             </div>
             <CardTitle className="text-xl text-foreground">
-              {t("checkEmail")}
+              {t("inviteOnlyTitle")}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              {t.rich("confirmSentTo", {
-                email,
-                b: (c) => <span className="text-foreground">{c}</span>,
-              })}
+              {inviteStatus === "invalid"
+                ? t("inviteInvalid")
+                : t("inviteOnlyDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link
-              href={
-                inviteToken
-                  ? `/login?invite=${encodeURIComponent(inviteToken)}`
-                  : "/login"
-              }
-            >
+            <Link href="/login">
               <Button
                 variant="outline"
                 className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -146,22 +161,26 @@ function SignupPageInner() {
     );
   }
 
+  if (inviteStatus === "checking") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center text-center">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            {inviteToken ? (
-              <UsersRound className="h-6 w-6 text-primary" />
-            ) : (
-              <MessageSquare className="h-6 w-6 text-primary" />
-            )}
+            <UsersRound className="h-6 w-6 text-primary" />
           </div>
           <CardTitle className="text-xl text-foreground">
-            {inviteToken ? t("titleJoin") : t("title")}
+            {t("titleJoin")}
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            {inviteToken ? t("subtitleJoin") : t("subtitle")}
+            {t("subtitleJoin")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -244,11 +263,7 @@ function SignupPageInner() {
           <p className="mt-6 text-center text-sm text-muted-foreground">
             {t("haveAccount")}{" "}
             <Link
-              href={
-                inviteToken
-                  ? `/login?invite=${encodeURIComponent(inviteToken)}`
-                  : "/login"
-              }
+              href={`/login?invite=${encodeURIComponent(inviteToken!)}`}
               className="text-primary hover:text-primary/80"
             >
               {t("signIn")}

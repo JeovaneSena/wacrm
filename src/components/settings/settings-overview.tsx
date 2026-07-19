@@ -34,7 +34,7 @@ export function SettingsOverview({
 }: {
   onSelect: (section: SettingsSection) => void;
 }) {
-  const { user, profile, accountId, accountRole, defaultCurrency, canManageMembers } =
+  const { user, profile, accountId, accountRole, defaultCurrency, canManageMembers, canEditSettings } =
     useAuth();
   const { mode, theme } = useTheme();
   const t = useTranslations('Settings.overview');
@@ -218,9 +218,12 @@ export function SettingsOverview({
         ) : null}
       </Card>
 
-      {/* Status tiles */}
+      {/* Status tiles — admin-only sections are hidden for agent/viewer,
+          matching the rail filter. */}
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {tiles.map(({ section, loading, subtitle }) => {
+        {tiles
+          .filter(({ section }) => !SECTION_META[section].adminOnly || canEditSettings)
+          .map(({ section, loading, subtitle }) => {
           const meta = SECTION_META[section];
           const Icon = meta.icon;
           return (

@@ -12,6 +12,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,7 +35,26 @@ interface ConfigState {
 const POLL_MS = 3000;
 const QR_REFRESH_MS = 25000;
 
+/** Admin-gated wrapper — agents/viewers previously saw editable-looking
+ *  controls that only failed at save time (RLS). Now they get a clear
+ *  notice instead, matching the other admin-only settings panels. */
 export function WhatsAppConfig() {
+  const t = useTranslations('Settings.whatsappSetup');
+  return (
+    <RequireRole
+      min="admin"
+      fallback={
+        <div className="rounded-xl border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+          {t('adminOnlyNotice')}
+        </div>
+      }
+    >
+      <WhatsAppConfigInner />
+    </RequireRole>
+  );
+}
+
+function WhatsAppConfigInner() {
   const t = useTranslations('Settings.whatsappSetup');
   const { user, accountId, loading: authLoading, profileLoading } = useAuth();
 
