@@ -376,15 +376,39 @@ export function MessageBubble({
   // padding; the artwork IS the message.
   const isSticker = message.content_type === "sticker";
 
+  const isGroupParticipantMsg =
+    !isAgent && (message.participant_name || message.participant_phone);
+
   // Row alignment + width cap are owned by <MessageActions> so its hover
   // group matches the bubble's content area, not the full row.
   return (
     <div
       className={cn(
-        "flex flex-col",
-        isAgent ? "items-end" : "items-start",
+        "flex",
+        isAgent ? "flex-col items-end" : "flex-row items-end gap-1.5",
       )}
     >
+      {/* Participant avatar — WhatsApp-style: small circle to the left
+          of inbound group messages only, never on our own. */}
+      {isGroupParticipantMsg && (
+        <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-muted">
+          {message.participant_avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- proxy/blob URL, no next/image benefit
+            <img
+              src={message.participant_avatar_url}
+              alt={message.participant_name || message.participant_phone || ""}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-[10px] font-medium text-muted-foreground">
+              {(message.participant_name || message.participant_phone || "?")
+                .charAt(0)
+                .toUpperCase()}
+            </span>
+          )}
+        </div>
+      )}
+      <div className={cn("flex flex-col", isAgent ? "items-end" : "items-start")}>
       <div
         className={cn(
           "relative rounded-2xl",
@@ -400,7 +424,7 @@ export function MessageBubble({
       >
         {/* Group attribution — inbound group messages carry a per-
             participant sender; direct chats never set these. */}
-        {!isAgent && (message.participant_name || message.participant_phone) && (
+        {isGroupParticipantMsg && (
           <p className="mb-0.5 truncate text-xs font-semibold text-primary">
             {message.participant_name || message.participant_phone}
           </p>
@@ -489,6 +513,7 @@ export function MessageBubble({
           onToggle={onToggleReaction}
         />
       )}
+      </div>
     </div>
   );
 }

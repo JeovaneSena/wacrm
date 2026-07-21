@@ -207,7 +207,9 @@
       "downloadMedia": "Download",
       "documentFallback": "Document",
       "groupBadge": "Group",
-      "groupSubtitle": "Group conversation"
+      "groupSubtitle": "Group conversation",
+      "mute": "Mute notifications",
+      "unmute": "Unmute notifications"
     },
     "composer": {
       "draftHint": "Tap the ✨ to draft a reply with AI — you can edit it before sending",

@@ -181,6 +181,11 @@ export interface Conversation {
   /** Group name as reported by WhatsApp. Falls back to group_jid in
    *  the UI when unset. */
   group_subject?: string | null;
+  /** Group's WhatsApp profile photo, fetched best-effort. Migration 043. */
+  group_avatar_url?: string | null;
+  /** Per-conversation mute — excludes it from the global unread badge,
+   *  tab title/favicon, and ping sound. Migration 043. */
+  is_muted?: boolean;
   /**
    * AI auto-reply state for this thread (migration 029 + 033):
    *  - `ai_autoreply_disabled` — the bot is paused here (a human took
@@ -284,6 +289,9 @@ export interface Message {
    *  leave these null (sender is the conversation's contact). Migration 042. */
   participant_phone?: string | null;
   participant_name?: string | null;
+  /** Participant's WhatsApp profile photo, fetched best-effort and
+   *  cached across their messages in the group. Migration 043. */
+  participant_avatar_url?: string | null;
 }
 
 export type ReactionActor = 'customer' | 'agent';

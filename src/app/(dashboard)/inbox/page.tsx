@@ -564,6 +564,18 @@ export default function InboxPage() {
     [activeConversation]
   );
 
+  const handleMuteChange = useCallback(
+    (conversationId: string, muted: boolean) => {
+      setConversations((prev) =>
+        prev.map((c) => (c.id === conversationId ? { ...c, is_muted: muted } : c))
+      );
+      if (activeConversation?.id === conversationId) {
+        setActiveConversation((prev) => (prev ? { ...prev, is_muted: muted } : prev));
+      }
+    },
+    [activeConversation]
+  );
+
   const handleAssignChange = useCallback(
     (conversationId: string, assignedAgentId: string | null) => {
       setConversations((prev) =>
@@ -648,6 +660,7 @@ export default function InboxPage() {
             onNewMessage={handleNewMessage}
             onUpdateMessage={handleUpdateMessage}
             onStatusChange={handleStatusChange}
+            onMuteChange={handleMuteChange}
             onAssignChange={handleAssignChange}
             onBack={handleCloseConversation}
             resyncToken={resyncToken}

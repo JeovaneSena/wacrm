@@ -4,10 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Conversation } from "@/types";
 
+interface ConvSnapshot {
+  unread_count: number;
+  is_muted: boolean;
+}
+
 /**
  * Count of conversations with at least one unread inbound message for
- * the current user. Drives the sidebar badge, the tab-title/favicon
- * counter, and the unread ping sound.
+ * the current user, EXCLUDING muted conversations. Drives the sidebar
+ * badge, the tab-title/favicon counter, and the unread ping sound —
+ * muting a (typically noisy) group or chat keeps it out of all three
+ * without hiding it from the inbox list itself.
  *
  * Lives on its own realtime channel (distinct from the inbox page's
  * "inbox-realtime") so both can coexist without sharing state.
@@ -22,9 +29,10 @@ import type { Conversation } from "@/types";
 export function useTotalUnread(): number {
   const [total, setTotal] = useState(0);
 
-  // Keep a live local mirror of {id: unread_count} so INSERT/UPDATE/DELETE
-  // events can adjust the total in O(1) without refetching.
-  const countsRef = useRef<Map<string, number>>(new Map());
+  // Keep a live local mirror of {id: {unread_count, is_muted}} so
+  // INSERT/UPDATE/DELETE events can adjust the total in O(1) without
+  // refetching.
+  const countsRef = useRef<Map<string, ConvSnapshot>>(new Map());
 
   useEffect(() => {
     const supabase = createClient();
@@ -35,15 +43,16 @@ export function useTotalUnread(): number {
     const refetch = async () => {
       const { data, error } = await supabase
         .from("conversations")
-        .select("id, unread_count");
+        .select("id, unread_count, is_muted");
       if (cancelled || error || !data) return;
 
-      const map = new Map<string, number>();
+      const map = new Map<string, ConvSnapshot>();
       let sum = 0;
-      for (const row of data as { id: string; unread_count: number }[]) {
+      for (const row of data as { id: string; unread_count: number; is_muted: boolean | null }[]) {
         const n = row.unread_count ?? 0;
-        map.set(row.id, n);
-        if (n > 0) sum += 1;
+        const muted = !!row.is_muted;
+        map.set(row.id, { unread_count: n, is_muted: muted });
+        if (n > 0 && !muted) sum += 1;
       }
       countsRef.current = map;
       setTotal(sum);
@@ -63,11 +72,16 @@ export function useTotalUnread(): number {
             if (oldRow.id) map.delete(oldRow.id);
           } else {
             const row = payload.new as Conversation;
-            map.set(row.id, row.unread_count ?? 0);
+            map.set(row.id, {
+              unread_count: row.unread_count ?? 0,
+              is_muted: !!row.is_muted,
+            });
           }
           // Recompute — cheap, conversations per user stay small.
           let sum = 0;
-          for (const n of map.values()) if (n > 0) sum += 1;
+          for (const snap of map.values()) {
+            if (snap.unread_count > 0 && !snap.is_muted) sum += 1;
+          }
           setTotal(sum);
         },
       )

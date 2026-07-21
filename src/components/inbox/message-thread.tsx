@@ -27,6 +27,8 @@ import {
   PanelRightOpen,
   PanelRightClose,
   Users,
+  Bell,
+  BellOff,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -66,6 +68,7 @@ interface MessageThreadProps {
   onNewMessage: (message: Message) => void;
   onUpdateMessage: (id: string, updates: Partial<Message>) => void;
   onStatusChange: (conversationId: string, status: ConversationStatus) => void;
+  onMuteChange: (conversationId: string, muted: boolean) => void;
   onAssignChange: (
     conversationId: string,
     assignedAgentId: string | null,
@@ -154,6 +157,7 @@ export function MessageThread({
   onNewMessage,
   onUpdateMessage,
   onStatusChange,
+  onMuteChange,
   onAssignChange,
   onBack,
   resyncToken = 0,
@@ -603,6 +607,19 @@ export function MessageThread({
     [conversation, onStatusChange]
   );
 
+  const handleToggleMute = useCallback(async () => {
+    if (!conversation) return;
+    const nextMuted = !conversation.is_muted;
+
+    const supabase = createClient();
+    await supabase
+      .from("conversations")
+      .update({ is_muted: nextMuted })
+      .eq("id", conversation.id);
+
+    onMuteChange(conversation.id, nextMuted);
+  }, [conversation, onMuteChange]);
+
   // Build a quick id → Message map so reply quotes can be rendered without
   // an extra fetch — the thread already holds the full conversation.
   const messagesById = useMemo(() => {
@@ -796,7 +813,15 @@ export function MessageThread({
           )}
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
             {isGroup ? (
-              <Users className="h-4 w-4 text-muted-foreground" />
+              conversation.group_avatar_url ? (
+                <img
+                  src={conversation.group_avatar_url}
+                  alt={displayName}
+                  className="h-9 w-9 rounded-full object-cover"
+                />
+              ) : (
+                <Users className="h-4 w-4 text-muted-foreground" />
+              )
             ) : contact!.avatar_url ? (
               <img
                 src={contact!.avatar_url}
@@ -823,6 +848,28 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Mute toggle — excludes this conversation from the global
+              unread badge/tab-title/favicon/ping sound (useTotalUnread).
+              Groups are the main motivation (high volume), but any
+              conversation can be muted. */}
+          <button
+            type="button"
+            onClick={() => void handleToggleMute()}
+            aria-label={conversation.is_muted ? t("unmute") : t("mute")}
+            title={conversation.is_muted ? t("unmute") : t("mute")}
+            aria-pressed={!!conversation.is_muted}
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground",
+              conversation.is_muted ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            {conversation.is_muted ? (
+              <BellOff className="h-4 w-4" />
+            ) : (
+              <Bell className="h-4 w-4" />
+            )}
+          </button>
+
           {/* Contact-panel toggle — desktop only. The contact sidebar
               eats a chunk of horizontal width that crowds the thread on
               smaller laptops; this lets agents reclaim it when they just

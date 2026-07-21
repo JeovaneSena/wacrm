@@ -232,7 +232,15 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
     return (
       <div className="flex h-full w-70 flex-col items-center gap-3 border-l border-border bg-card p-6 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-          <UsersIcon className="h-7 w-7 text-muted-foreground" />
+          {conversation?.group_avatar_url ? (
+            <img
+              src={conversation.group_avatar_url}
+              alt={groupName}
+              className="h-16 w-16 rounded-full object-cover"
+            />
+          ) : (
+            <UsersIcon className="h-7 w-7 text-muted-foreground" />
+          )}
         </div>
         <h3 className="text-sm font-semibold text-foreground">{groupName}</h3>
         {conversation?.group_jid && (

@@ -207,7 +207,9 @@
       "downloadMedia": "Baixar",
       "documentFallback": "Documento",
       "groupBadge": "Grupo",
-      "groupSubtitle": "Conversa em grupo"
+      "groupSubtitle": "Conversa em grupo",
+      "mute": "Silenciar notificações",
+      "unmute": "Ativar notificações"
     },
     "composer": {
       "draftHint": "Toque em ✨ para rascunhar uma resposta com IA — você pode editar antes de enviar",

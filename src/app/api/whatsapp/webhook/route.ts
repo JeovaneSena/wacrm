@@ -226,6 +226,8 @@ async function findOrCreateGroupConversation(
   configOwnerUserId: string,
   groupJid: string,
   subject: string | null,
+  serverUrl: string,
+  encryptedInstanceToken: string,
 ) {
   const { data: existing } = await supabaseAdmin()
     .from('conversations')
@@ -235,16 +237,23 @@ async function findOrCreateGroupConversation(
     .maybeSingle()
 
   if (existing) {
+    const updates: Record<string, unknown> = {}
     // Keep the subject fresh (group name changes happen).
     if (subject && subject !== existing.group_subject) {
-      await supabaseAdmin()
-        .from('conversations')
-        .update({ group_subject: subject })
-        .eq('id', existing.id)
-      existing.group_subject = subject
+      updates.group_subject = subject
+    }
+    if (!existing.group_avatar_url) {
+      const photo = await tryFetchContactPhoto(serverUrl, encryptedInstanceToken, groupJid)
+      if (photo) updates.group_avatar_url = photo
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabaseAdmin().from('conversations').update(updates).eq('id', existing.id)
+      Object.assign(existing, updates)
     }
     return { conversation: existing, created: false }
   }
+
+  const groupAvatarUrl = await tryFetchContactPhoto(serverUrl, encryptedInstanceToken, groupJid)
 
   const { data: newConv, error: createError } = await supabaseAdmin()
     .from('conversations')
@@ -255,6 +264,7 @@ async function findOrCreateGroupConversation(
       chat_type: 'group',
       group_jid: groupJid,
       group_subject: subject,
+      group_avatar_url: groupAvatarUrl,
     })
     .select()
     .single()
@@ -298,6 +308,8 @@ async function processGroupMessage(
     config.user_id,
     groupJid,
     subject,
+    config.server_url,
+    config.instance_token,
   )
   if (!convResult) return
   const conversation = convResult.conversation
@@ -344,6 +356,30 @@ async function processGroupMessage(
     const participantPhone = normalizePhone(senderJid.split('@')[0]) || null
     const participantName = message.senderName || participantPhone || null
 
+    // Cache the participant's photo across their messages in this
+    // group instead of hitting uazapi on every single message — reuse
+    // whatever the most recent prior message from them already has.
+    let participantAvatarUrl: string | null = null
+    if (participantPhone) {
+      const { data: priorMsg } = await supabaseAdmin()
+        .from('messages')
+        .select('participant_avatar_url')
+        .eq('conversation_id', conversation.id)
+        .eq('participant_phone', participantPhone)
+        .not('participant_avatar_url', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      participantAvatarUrl = priorMsg?.participant_avatar_url ?? null
+      if (!participantAvatarUrl) {
+        participantAvatarUrl = await tryFetchContactPhoto(
+          config.server_url,
+          config.instance_token,
+          participantPhone,
+        )
+      }
+    }
+
     const { error: msgError } = await supabaseAdmin().from('messages').insert({
       conversation_id: conversation.id,
       sender_type: 'customer',
@@ -355,6 +391,7 @@ async function processGroupMessage(
       created_at: new Date(message.messageTimestamp).toISOString(),
       participant_phone: participantPhone,
       participant_name: participantName,
+      participant_avatar_url: participantAvatarUrl,
     })
     if (msgError) {
       console.error('[uazapi webhook] error inserting group message:', msgError)

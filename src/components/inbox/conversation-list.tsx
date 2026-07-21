@@ -9,7 +9,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, SquarePen, Users } from "lucide-react";
+import { Search, ChevronDown, X, SquarePen, Users, BellOff } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useTranslations } from "next-intl";
@@ -485,7 +485,15 @@ function ConversationItem({
       {/* Avatar */}
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
         {isGroup ? (
-          <Users className="h-4.5 w-4.5 text-muted-foreground" />
+          conversation.group_avatar_url ? (
+            <img
+              src={conversation.group_avatar_url}
+              alt={displayName}
+              className="h-10 w-10 rounded-full object-cover"
+            />
+          ) : (
+            <Users className="h-4.5 w-4.5 text-muted-foreground" />
+          )
         ) : contact?.avatar_url ? (
           <img
             src={contact.avatar_url}
@@ -508,7 +516,10 @@ function ConversationItem({
           >
             {displayName}
           </span>
-          <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
+          <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
+            {conversation.is_muted && <BellOff className="h-3 w-3" />}
+            {timeAgo}
+          </span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p
