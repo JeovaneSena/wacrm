@@ -3,9 +3,15 @@
 // ============================================================
 // /join/[token] — invitation redemption landing page.
 //
-// Four UI states driven by:
+// Five UI states driven by:
 //   - the peek result (server-validated invite payload), and
 //   - whether the visitor is currently authenticated.
+// Peek and auth resolve INDEPENDENTLY (two separate effects/fetches) —
+// auth.getUser() is a real network round trip to Supabase's auth
+// server, not a local cache read, so gating the whole page behind
+// both meant a slow/stuck auth call kept the spinner up long after
+// peek had already answered (even with an error). Only the "Accept"
+// button waits on auth now; everything else renders off peek alone.
 //
 //   ┌──────────────────────┬───────────────┬─────────────────────────┐
 //   │ peek                 │ auth          │ render                   │
@@ -13,6 +19,7 @@
 //   │ loading              │ —             │ spinner                  │
 //   │ ok:false (any reason)│ —             │ friendly error + signup  │
 //   │ ok:true              │ signed out    │ "Sign up" + "Sign in"    │
+//   │ ok:true              │ loading       │ card + disabled button   │
 //   │ ok:true              │ signed in     │ "Accept" button → redeem │
 //   └──────────────────────┴───────────────┴─────────────────────────┘
 //
@@ -75,41 +82,57 @@ export default function JoinPage() {
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
-  // Single fetch path for both the initial mount and the "Try again"
-  // button — previously duplicated verbatim in two places, which is
-  // exactly the kind of drift that let the 429-mishandling bug above
-  // exist in one copy and not get noticed in the other.
-  const loadPeekAndAuth = useCallback(
+  // Peek and auth are resolved independently — previously a single
+  // `Promise.all` gated the whole page behind BOTH finishing, so a
+  // slow/stuck `auth.getUser()` (a real network round trip to
+  // Supabase's auth server, not a local cache read) kept the spinner
+  // up long after the peek had already come back, even with an error.
+  // Each one now updates its own state as soon as it resolves.
+  const loadPeek = useCallback(
     async (signal?: AbortSignal) => {
       if (!token) return;
       try {
-        const [peekRes, authRes] = await Promise.all([
-          fetch(`/api/invitations/${encodeURIComponent(token)}/peek`, {
-            cache: 'no-store',
-            signal,
-          }),
-          createClient().auth.getUser(),
-        ]);
+        const peekRes = await fetch(
+          `/api/invitations/${encodeURIComponent(token)}/peek`,
+          { cache: 'no-store', signal },
+        );
         const peekBody = await parsePeekResponse(peekRes);
         if (signal?.aborted) return;
         setPeek(peekBody);
-        setAuthedUserId(authRes.data.user?.id ?? null);
       } catch (err) {
         if (signal?.aborted) return;
         console.error('[join] peek error:', err);
         setPeek({ ok: false, reason: 'server_error' });
-        setAuthedUserId(null);
       }
     },
     [token],
   );
 
+  const loadAuth = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const authRes = await createClient().auth.getUser();
+      if (signal?.aborted) return;
+      setAuthedUserId(authRes.data.user?.id ?? null);
+    } catch (err) {
+      if (signal?.aborted) return;
+      console.error('[join] auth error:', err);
+      setAuthedUserId(null);
+    }
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadPeekAndAuth(controller.signal);
+    void loadPeek(controller.signal);
     return () => controller.abort();
-  }, [loadPeekAndAuth]);
+  }, [loadPeek]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadAuth(controller.signal);
+    return () => controller.abort();
+  }, [loadAuth]);
 
   const handleAccept = useCallback(async () => {
     if (!token) return;
@@ -162,8 +185,9 @@ export default function JoinPage() {
     }
   }, [t]);
 
-  // ----- Loading state (peek pending OR auth not yet resolved) -----
-  if (peek === null || authedUserId === undefined) {
+  // ----- Loading state (peek pending). Auth resolving separately no
+  // longer blocks this — see the "Peek OK" branch below. -----
+  if (peek === null) {
     return (
       <Card className="w-full max-w-md border-border bg-card shadow-xl shadow-black/20">
         <CardContent className="flex flex-col items-center gap-3 py-12">
@@ -217,8 +241,7 @@ export default function JoinPage() {
               <Button
                 onClick={() => {
                   setPeek(null);
-                  setAuthedUserId(undefined);
-                  void loadPeekAndAuth();
+                  void loadPeek();
                 }}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
               >
@@ -284,6 +307,23 @@ export default function JoinPage() {
       </CardDescription>
     </CardHeader>
   );
+
+  // ----- Auth still resolving: invite card renders immediately (peek
+  // already answered), only the action button waits on auth. Avoids
+  // blocking the whole page behind a slow/stuck auth.getUser() call. -----
+  if (authedUserId === undefined) {
+    return (
+      <Card className="w-full max-w-md border-border bg-card shadow-xl shadow-black/20">
+        {inviteHeader}
+        <CardContent className="flex flex-col gap-3">
+          <Button disabled className="w-full bg-primary text-primary-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            {t('verifying')}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // ----- Authed: show Accept button -----
   if (authedUserId) {
