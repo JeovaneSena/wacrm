@@ -18,6 +18,7 @@ import {
   Smartphone,
   Webhook,
   Bot,
+  Ban,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
@@ -216,6 +217,14 @@ function MediaVideo({ url, alt }: { url: string; alt: string }) {
 }
 
 function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof useTranslations> }) {
+  if (message.deleted_at) {
+    return (
+      <p className="flex items-center gap-1.5 text-sm italic text-muted-foreground">
+        <Ban className="h-3.5 w-3.5" />
+        {t("messageDeleted")}
+      </p>
+    );
+  }
   switch (message.content_type) {
     case "text":
       return (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CornerUpLeft, Copy, SmilePlus } from "lucide-react";
+import { CornerUpLeft, Copy, SmilePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -20,6 +20,7 @@ interface MessageActionsProps {
   message: Message;
   onReply: () => void;
   onReact: (emoji: string) => void;
+  onDelete: () => void;
   children: ReactNode;
 }
 
@@ -32,6 +33,7 @@ export function MessageActions({
   message,
   onReply,
   onReact,
+  onDelete,
   children,
 }: MessageActionsProps) {
   const t = useTranslations("Inbox.actions");
@@ -44,6 +46,7 @@ export function MessageActions({
 
   const isAgent =
     message.sender_type === "agent" || message.sender_type === "bot";
+  const isDeleted = Boolean(message.deleted_at);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -76,6 +79,13 @@ export function MessageActions({
     setTouchOpen(false);
   };
 
+  const handleDelete = () => {
+    if (window.confirm(t("confirmDelete"))) {
+      onDelete();
+    }
+    setTouchOpen(false);
+  };
+
   // Row alignment lives here (not in MessageBubble) so the `group/actions`
   // hover region matches the bubble's content width — hovering empty space
   // in the row no longer reveals the toolbar.
@@ -95,6 +105,7 @@ export function MessageActions({
        *  area. See issue #165. */}
       <div className="group/actions relative min-w-0 max-w-[75%]">
         {children}
+      {!isDeleted && (
       <div
         data-touch-open={touchOpen || pickerOpen ? "true" : undefined}
         className={cn(
@@ -144,7 +155,18 @@ export function MessageActions({
         >
           <Copy className="h-3.5 w-3.5" />
         </button>
+        {isAgent && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-popover-foreground hover:bg-destructive/10 hover:text-destructive"
+            aria-label={t("delete")}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
+      )}
       </div>
     </div>
   );

@@ -202,6 +202,7 @@
       "failedSend": "Failed to send: {reason}",
       "waitSending": "Wait for the message to finish sending",
       "reactionFailed": "Reaction failed: {reason}",
+      "deleteFailed": "Delete failed: {reason}",
       "failedAssign": "Failed to update assignment",
       "mediaLightboxTitle": "Media preview",
       "downloadMedia": "Download",
@@ -265,12 +266,14 @@
       "audioPlay": "Play",
       "audioPause": "Pause",
       "audioSeek": "Seek",
-      "sticker": "Sticker"
+      "sticker": "Sticker",
+      "messageDeleted": "This message was deleted"
     },
     "actions": {
       "reply": "Reply",
       "copyText": "Copy text",
       "delete": "Delete",
+      "confirmDelete": "Delete this message for everyone? This cannot be undone.",
       "react": "React",
       "reactWith": "React with {emoji}",
       "nothingToCopy": "Nothing to copy",

@@ -360,6 +360,34 @@ export async function sendReactionMessage(
   return { messageId: data.id ?? data.messageid ?? targetMessageId }
 }
 
+export interface DeleteMessageArgs extends InstanceTokenArgs {
+  to: string
+  /** uazapi message id to delete-for-everyone. */
+  targetMessageId: string
+}
+
+/**
+ * Delete-for-everyone. Endpoint follows the /message/react convention
+ * (POST /message/delete, { number, id }) but has not been confirmed
+ * against a live uazapiGO server — WhatsApp's own delete window is a
+ * few minutes, too destructive to test blind against a real chat.
+ * If the path/shape is wrong, uazapi's error message surfaces as-is
+ * through throwUazapiError to the route's 502 response.
+ */
+export async function deleteMessage(
+  args: DeleteMessageArgs,
+): Promise<void> {
+  const { serverUrl, instanceToken, to, targetMessageId } = args
+  const response = await fetch(`${serverUrl}/message/delete`, {
+    method: 'POST',
+    headers: { token: instanceToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ number: to, id: targetMessageId }),
+  })
+  if (!response.ok) {
+    await throwUazapiError(response, `uazapi API error: ${response.status}`)
+  }
+}
+
 // ============================================================
 // Media download (inbound)
 // ============================================================

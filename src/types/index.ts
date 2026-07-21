@@ -292,6 +292,10 @@ export interface Message {
   /** Participant's WhatsApp profile photo, fetched best-effort and
    *  cached across their messages in the group. Migration 043. */
   participant_avatar_url?: string | null;
+  /** Set when this message was deleted-for-everyone via WhatsApp.
+   *  Bubble renders a "message deleted" placeholder instead of content.
+   *  Migration 045. */
+  deleted_at?: string | null;
 }
 
 export type ReactionActor = 'customer' | 'agent';

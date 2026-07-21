@@ -202,6 +202,7 @@
       "failedSend": "Falha ao enviar: {reason}",
       "waitSending": "Aguarde a mensagem terminar de enviar",
       "reactionFailed": "Falha na reação: {reason}",
+      "deleteFailed": "Falha ao apagar: {reason}",
       "failedAssign": "Falha ao atualizar a atribuição",
       "mediaLightboxTitle": "Visualização de mídia",
       "downloadMedia": "Baixar",
@@ -265,12 +266,14 @@
       "audioPlay": "Reproduzir",
       "audioPause": "Pausar",
       "audioSeek": "Avançar/retroceder",
-      "sticker": "Figurinha"
+      "sticker": "Figurinha",
+      "messageDeleted": "Mensagem apagada"
     },
     "actions": {
       "reply": "Responder",
       "copyText": "Copiar texto",
       "delete": "Excluir",
+      "confirmDelete": "Apagar esta mensagem para todos? Essa ação não pode ser desfeita.",
       "react": "Reagir",
       "reactWith": "Reagir com {emoji}",
       "nothingToCopy": "Nada para copiar",

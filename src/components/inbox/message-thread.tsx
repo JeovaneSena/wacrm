@@ -730,6 +730,35 @@ export function MessageThread({
     [conversation, user?.id],
   );
 
+  // Delete-for-everyone. Optimistic flip to deleted_at, rollback via
+  // onUpdateMessage on failure — same shape as postReaction's rollback.
+  const postDelete = useCallback(
+    async (messageId: string) => {
+      if (messageId.startsWith("temp-")) {
+        toast.error(t("waitSending"));
+        return;
+      }
+      const deletedAt = new Date().toISOString();
+      onUpdateMessage(messageId, { deleted_at: deletedAt });
+      try {
+        const res = await fetch("/api/whatsapp/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message_id: messageId }),
+        });
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          throw new Error(payload?.error || `HTTP ${res.status}`);
+        }
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "network error";
+        toast.error(t("deleteFailed", { reason }));
+        onUpdateMessage(messageId, { deleted_at: null });
+      }
+    },
+    [onUpdateMessage, t],
+  );
+
   const handleAssignChange = useCallback(
     async (agentId: string | null) => {
       if (!conversation) return;
@@ -1066,6 +1095,7 @@ export function MessageThread({
                         onReact={(emoji) => {
                           if (emoji) void postReaction(msg.id, emoji);
                         }}
+                        onDelete={() => void postDelete(msg.id)}
                       >
                         <MessageBubble
                           message={msg}
