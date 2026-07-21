@@ -25,6 +25,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   AlertTriangle,
+  Copy,
   Crown,
   Sparkle,
   Loader2,
@@ -141,6 +142,7 @@ export function MembersTab() {
   const [removingMember, setRemovingMember] = useState<Member | null>(null);
   const [transferTarget, setTransferTarget] = useState<Member | null>(null);
   const [transferring, setTransferring] = useState(false);
+  const [revealingId, setRevealingId] = useState<string | null>(null);
   const [pendingMemberAction, setPendingMemberAction] = useState<string | null>(
     null,
   );
@@ -285,6 +287,31 @@ export function MembersTab() {
       toast.error(t('errServer'));
     } finally {
       setTransferring(false);
+    }
+  }
+
+  async function handleReveal(invite: Invitation) {
+    setRevealingId(invite.id);
+    try {
+      const res = await fetch(`/api/account/invitations/${invite.id}/reveal`);
+      const payload = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !payload.url) {
+        toast.error(payload.error || t('errServer'));
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(payload.url);
+        toast.success(t('linkCopied'));
+      } catch {
+        // Clipboard blocked (insecure context / permissions) — the
+        // toast surfaces the link itself so the admin can hand-copy it.
+        toast.error(t('clipboardBlocked', { url: payload.url }));
+      }
+    } catch (err) {
+      console.error('[MembersTab] reveal error:', err);
+      toast.error(t('errServer'));
+    } finally {
+      setRevealingId(null);
     }
   }
 
@@ -535,16 +562,6 @@ export function MembersTab() {
               {invitations.length}
             </Badge>
           </div>
-          {/* P10 — make the no-resend design explicit. Admins were
-              confused why the pending list shows roles + expiry but
-              no "copy link again" button. Stating the constraint up
-              front (rather than letting the user discover it by
-              looking for a button) keeps it from feeling like a bug. */}
-          {invitations.length > 0 ? (
-            <p className="mb-3 text-xs text-muted-foreground">
-              {t('inviteHint')}
-            </p>
-          ) : null}
 
           {invitations.length === 0 ? (
             <Card>
@@ -594,19 +611,39 @@ export function MembersTab() {
                         </p>
                       </div>
 
-                      {/* Revoke: red default state, mirrors the
-                          members-tab Remove button. Pre-polish version
-                          read as a neutral secondary button until
-                          hover. */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRevoke(inv)}
-                        className="border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-200"
-                      >
-                        <MailX className="size-4" />
-                        {t('revoke')}
-                      </Button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {/* Reveal: decrypts token_encrypted (044) and
+                            copies the link again — recovers a lost
+                            one-time copy without revoke+recreate. */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleReveal(inv)}
+                          disabled={revealingId === inv.id}
+                          title={t('revealLink')}
+                          className="border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          {revealingId === inv.id ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Copy className="size-4" />
+                          )}
+                        </Button>
+
+                        {/* Revoke: red default state, mirrors the
+                            members-tab Remove button. Pre-polish version
+                            read as a neutral secondary button until
+                            hover. */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRevoke(inv)}
+                          className="border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-200"
+                        >
+                          <MailX className="size-4" />
+                          {t('revoke')}
+                        </Button>
+                      </div>
                     </li>
                     );
                   })}

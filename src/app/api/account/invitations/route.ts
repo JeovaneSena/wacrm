@@ -8,13 +8,13 @@
 // populate the "Pending invitations" section; create is what the
 // "Invite member" dialog calls.
 //
-// IMPORTANT: the plaintext token is returned exactly ONCE — in
-// the POST response. We store only the SHA-256 hash on the row,
-// so neither GET nor a future PATCH can ever resurface the
-// link. The admin sees it in the creation modal, copies it, and
-// shares it via WhatsApp/Slack/whatever they like. If they
-// dismiss the modal without copying, the only recourse is to
-// revoke and re-issue.
+// Migration 044: alongside `token_hash` (the SHA-256 lookup key,
+// unchanged) we now also persist `token_encrypted` — the same
+// token, AES-256-GCM encrypted with ENCRYPTION_KEY, letting an admin
+// reveal the link again later via GET /api/account/invitations/[id]/reveal
+// instead of only being able to revoke-and-recreate. Deliberate,
+// explicit trade-off vs. the original hash-only design — see 044's
+// migration comment.
 // ============================================================
 
 import { NextResponse } from "next/server";
@@ -27,6 +27,7 @@ import {
   inviteUrl,
 } from "@/lib/auth/invitations";
 import { isAccountRole } from "@/lib/auth/roles";
+import { encrypt } from "@/lib/whatsapp/encryption";
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -91,7 +92,7 @@ function isHostAllowed(
   return allowList.includes(hostname.toLowerCase());
 }
 
-function getBaseUrl(request: Request): string {
+export function getBaseUrl(request: Request): string {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (explicit) return explicit.replace(/\/+$/, "");
 
@@ -231,6 +232,7 @@ export async function POST(request: Request) {
       .insert({
         account_id: ctx.accountId,
         token_hash: hash,
+        token_encrypted: encrypt(token),
         role,
         kind,
         created_by_user_id: ctx.userId,
