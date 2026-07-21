@@ -1612,7 +1612,9 @@
     "errAccept": "Failed to accept invitation",
     "welcome": "Welcome to the team",
     "errServer": "Could not reach the server",
-    "errSignOut": "Could not sign out. Try refreshing the page."
+    "errSignOut": "Could not sign out. Try refreshing the page.",
+    "fail_rate_limited_title": "Too many attempts",
+    "fail_rate_limited_body": "Wait a minute and try again — having several tabs open at once can trip the safety limit."
   },
   "Agents": {
     "title": "AI Agents",

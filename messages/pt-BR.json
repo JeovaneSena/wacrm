@@ -1612,7 +1612,9 @@
     "errAccept": "Falha ao aceitar o convite",
     "welcome": "Bem-vindo à equipe",
     "errServer": "Não foi possível conectar ao servidor",
-    "errSignOut": "Não foi possível sair. Tente atualizar a página."
+    "errSignOut": "Não foi possível sair. Tente atualizar a página.",
+    "fail_rate_limited_title": "Muitas tentativas seguidas",
+    "fail_rate_limited_body": "Espera um minuto e tenta de novo — algumas abas abertas ao mesmo tempo podem ter disparado o limite de segurança."
   },
   "Agents": {
     "title": "Agentes de IA",

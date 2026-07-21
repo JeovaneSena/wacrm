@@ -65,9 +65,26 @@ interface PeekOk {
 }
 interface PeekFail {
   ok: false;
-  reason: 'not_found' | 'used' | 'expired' | 'server_error';
+  reason: 'not_found' | 'used' | 'expired' | 'server_error' | 'rate_limited';
 }
 type PeekResult = PeekOk | PeekFail;
+
+/**
+ * Parse the peek response defensively. The endpoint only returns the
+ * `{ok, reason?}` shape on 2xx — a 429 (rate limit) or any other
+ * non-OK status returns a differently-shaped body (`{error, ...}`),
+ * which used to be cast straight to `PeekResult` and rendered as
+ * `fail_undefined_title` (peek.reason was literally `undefined`).
+ * Checking `res.ok` first and mapping anything else to a known
+ * reason keeps every path on a valid i18n key.
+ */
+async function parsePeekResponse(res: Response): Promise<PeekResult> {
+  if (res.status === 429) return { ok: false, reason: 'rate_limited' };
+  if (!res.ok) return { ok: false, reason: 'server_error' };
+  const body = await res.json().catch(() => null);
+  if (body && typeof body === 'object' && 'ok' in body) return body as PeekResult;
+  return { ok: false, reason: 'server_error' };
+}
 
 export default function JoinPage() {
   const t = useTranslations('JoinInvite');
@@ -89,59 +106,41 @@ export default function JoinPage() {
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
-  // Extracted so the "Try again" button on the server_error card
-  // can re-run the same logic without remounting the component.
-  const loadPeekAndAuth = useCallback(async () => {
-    if (!token) return;
-    setPeek(null);
-    setAuthedUserId(undefined);
-    try {
-      const [peekRes, authRes] = await Promise.all([
-        fetch(`/api/invitations/${encodeURIComponent(token)}/peek`, {
-          cache: 'no-store',
-        }),
-        createClient().auth.getUser(),
-      ]);
-      const peekBody = (await peekRes.json()) as PeekResult;
-      setPeek(peekBody);
-      setAuthedUserId(authRes.data.user?.id ?? null);
-    } catch (err) {
-      console.error('[join] peek error:', err);
-      setPeek({ ok: false, reason: 'server_error' });
-      setAuthedUserId(null);
-    }
-  }, [token]);
-
-  // Fetch peek + auth state on mount. The peek endpoint is
-  // rate-limited per-IP (30/min) so double-mounting in React 19
-  // strict mode dev is harmless. We also use the `cancelled` flag
-  // to drop setState calls if the component unmounts mid-fetch.
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    (async () => {
+  // Single fetch path for both the initial mount and the "Try again"
+  // button — previously duplicated verbatim in two places, which is
+  // exactly the kind of drift that let the 429-mishandling bug above
+  // exist in one copy and not get noticed in the other.
+  const loadPeekAndAuth = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!token) return;
       try {
         const [peekRes, authRes] = await Promise.all([
           fetch(`/api/invitations/${encodeURIComponent(token)}/peek`, {
             cache: 'no-store',
+            signal,
           }),
           createClient().auth.getUser(),
         ]);
-        const peekBody = (await peekRes.json()) as PeekResult;
-        if (cancelled) return;
+        const peekBody = await parsePeekResponse(peekRes);
+        if (signal?.aborted) return;
         setPeek(peekBody);
         setAuthedUserId(authRes.data.user?.id ?? null);
       } catch (err) {
+        if (signal?.aborted) return;
         console.error('[join] peek error:', err);
-        if (cancelled) return;
         setPeek({ ok: false, reason: 'server_error' });
         setAuthedUserId(null);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadPeekAndAuth(controller.signal);
+    return () => controller.abort();
+  }, [loadPeekAndAuth]);
 
   const handleAccept = useCallback(async () => {
     if (!token) return;
@@ -197,7 +196,7 @@ export default function JoinPage() {
   // ----- Loading state (peek pending OR auth not yet resolved) -----
   if (peek === null || authedUserId === undefined) {
     return (
-      <Card className="w-full max-w-md border-border bg-card">
+      <Card className="w-full max-w-md border-border bg-card shadow-xl shadow-black/20">
         <CardContent className="flex flex-col items-center gap-3 py-12">
           <Loader2 className="size-6 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">{t('verifying')}</p>
@@ -214,7 +213,7 @@ export default function JoinPage() {
       window.location.replace(`/signup?invite=${encodeURIComponent(token ?? '')}`);
     }
     return (
-      <Card className="w-full max-w-md border-border bg-card">
+      <Card className="w-full max-w-md border-border bg-card shadow-xl shadow-black/20">
         <CardContent className="flex flex-col items-center gap-3 py-12">
           <Loader2 className="size-6 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">{t('verifying')}</p>
@@ -226,7 +225,7 @@ export default function JoinPage() {
   // ----- Peek failed -----
   if (!peek.ok) {
     return (
-      <Card className="w-full max-w-md border-border bg-card">
+      <Card className="w-full max-w-md border-border bg-card shadow-xl shadow-black/20">
         <CardHeader className="items-center text-center">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
             <MailX className="h-6 w-6 text-red-400" />
@@ -244,10 +243,14 @@ export default function JoinPage() {
               failure reasons (not_found / used / expired) are
               terminal for this token, so no retry — just the
               signup/sign-in escape hatches. */}
-          {peek.reason === 'server_error' ? (
+          {peek.reason === 'server_error' || peek.reason === 'rate_limited' ? (
             <>
               <Button
-                onClick={loadPeekAndAuth}
+                onClick={() => {
+                  setPeek(null);
+                  setAuthedUserId(undefined);
+                  void loadPeekAndAuth();
+                }}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 {t('tryAgain')}
@@ -317,7 +320,7 @@ export default function JoinPage() {
   if (authedUserId) {
     return (
       <>
-        <Card className="w-full max-w-md border-border bg-card">
+        <Card className="w-full max-w-md border-border bg-card shadow-xl shadow-black/20">
           {inviteHeader}
           <CardContent className="flex flex-col gap-3">
             <Button
@@ -405,7 +408,7 @@ export default function JoinPage() {
 
   // ----- Not authed: prompt to sign up or sign in -----
   return (
-    <Card className="w-full max-w-md border-border bg-card">
+    <Card className="w-full max-w-md border-border bg-card shadow-xl shadow-black/20">
       {inviteHeader}
       <CardContent className="flex flex-col gap-2">
         <Link href={`/signup?invite=${encodeURIComponent(token!)}`}>
