@@ -9,7 +9,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, SquarePen } from "lucide-react";
+import { Search, ChevronDown, X, SquarePen, Users } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useTranslations } from "next-intl";
@@ -39,7 +39,7 @@ interface ConversationListProps {
   onNewConversation?: () => void;
 }
 
-type InboxFilter = ConversationStatus | "all" | "unread";
+type InboxFilter = ConversationStatus | "all" | "unread" | "groups";
 
 export function ConversationList({
   activeConversationId,
@@ -57,6 +57,7 @@ export function ConversationList({
     { label: t("filterOpen"), value: "open" },
     { label: t("filterPending"), value: "pending" },
     { label: t("filterClosed"), value: "closed" },
+    { label: t("filterGroups"), value: "groups" },
   ], [t]);
 
   const [search, setSearch] = useState("");
@@ -159,6 +160,8 @@ export function ConversationList({
 
     if (filter === "unread") {
       result = result.filter((c) => c.unread_count > 0);
+    } else if (filter === "groups") {
+      result = result.filter((c) => c.chat_type === "group");
     } else if (filter !== "all") {
       result = result.filter((c) => c.status === filter);
     }
@@ -176,7 +179,7 @@ export function ConversationList({
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((c) => {
-        const name = c.contact?.name?.toLowerCase() ?? "";
+        const name = c.contact?.name?.toLowerCase() ?? c.group_subject?.toLowerCase() ?? "";
         const phone = c.contact?.phone?.toLowerCase() ?? "";
         const lastMsg = c.last_message_text?.toLowerCase() ?? "";
         return name.includes(q) || phone.includes(q) || lastMsg.includes(q);
@@ -454,7 +457,10 @@ function ConversationItem({
   t,
 }: ConversationItemProps) {
   const contact = conversation.contact;
-  const displayName = contact?.name || contact?.phone || t("unknown");
+  const isGroup = conversation.chat_type === "group";
+  const displayName = isGroup
+    ? conversation.group_subject || conversation.group_jid || t("unknownGroup")
+    : contact?.name || contact?.phone || t("unknown");
   const initials = displayName.charAt(0).toUpperCase();
 
   const handleClick = useCallback(() => {
@@ -478,7 +484,9 @@ function ConversationItem({
     >
       {/* Avatar */}
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-        {contact?.avatar_url ? (
+        {isGroup ? (
+          <Users className="h-4.5 w-4.5 text-muted-foreground" />
+        ) : contact?.avatar_url ? (
           <img
             src={contact.avatar_url}
             alt={displayName}

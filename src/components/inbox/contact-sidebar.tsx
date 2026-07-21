@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import type {
   Contact,
+  Conversation,
   CustomField,
   Deal,
   ContactNote,
@@ -24,6 +25,7 @@ import {
   DollarSign,
   StickyNote,
   Plus,
+  Users as UsersIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,11 +42,15 @@ import { useTranslations } from "next-intl";
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  /** Passed so the sidebar can tell "no conversation selected" apart
+   *  from "a group conversation is selected" — both have contact=null. */
+  conversation?: Conversation | null;
 }
 
-export function ContactSidebar({ contact }: ContactSidebarProps) {
+export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
+  const isGroup = conversation?.chat_type === "group";
 
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
@@ -210,7 +216,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     setAddingNote(false);
   }, [contact, newNote, accountId]);
 
-  if (!contact) {
+  if (!contact && !isGroup) {
     return (
       <div className="flex h-full w-70 items-center justify-center border-l border-border bg-card">
         <p className="text-sm text-muted-foreground">{tThread("selectConversation")}</p>
@@ -218,7 +224,30 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     );
   }
 
-  const displayName = contact.name || contact.phone;
+  // Groups have no linked contact — tags/deals/notes are per-contact
+  // concepts, so the panel just confirms which group this is.
+  if (isGroup) {
+    const groupName =
+      conversation?.group_subject || conversation?.group_jid || tSidebar("unknownGroup");
+    return (
+      <div className="flex h-full w-70 flex-col items-center gap-3 border-l border-border bg-card p-6 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          <UsersIcon className="h-7 w-7 text-muted-foreground" />
+        </div>
+        <h3 className="text-sm font-semibold text-foreground">{groupName}</h3>
+        {conversation?.group_jid && (
+          <p className="break-all text-xs text-muted-foreground">{conversation.group_jid}</p>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">{tSidebar("groupNoContact")}</p>
+      </div>
+    );
+  }
+
+  // Both early-return branches above cover the null case (no
+  // conversation selected, or a group) — narrow once here instead of
+  // asserting at every JSX access below.
+  const c = contact!;
+  const displayName = c.name || c.phone;
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
@@ -228,9 +257,9 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           {/* Contact Info */}
           <div className="flex flex-col items-center text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-lg font-semibold text-foreground">
-              {contact.avatar_url ? (
+              {c.avatar_url ? (
                 <img
-                  src={contact.avatar_url}
+                  src={c.avatar_url}
                   alt={displayName}
                   className="h-16 w-16 rounded-full object-cover"
                 />
@@ -241,8 +270,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
             <h3 className="mt-3 text-sm font-semibold text-foreground">
               {displayName}
             </h3>
-            {contact.company && (
-              <p className="text-xs text-muted-foreground">{contact.company}</p>
+            {c.company && (
+              <p className="text-xs text-muted-foreground">{c.company}</p>
             )}
           </div>
 
@@ -253,7 +282,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
             >
               <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1 text-left">{contact.phone}</span>
+              <span className="flex-1 text-left">{c.phone}</span>
               {copied ? (
                 <Check className="h-3 w-3 text-primary" />
               ) : (
@@ -263,15 +292,15 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
             <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
               <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{contact.email || "—"}</span>
+              <span className="truncate">{c.email || "—"}</span>
             </div>
 
             <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
               <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{contact.company || "—"}</span>
+              <span className="truncate">{c.company || "—"}</span>
             </div>
 
-            {contact.created_at && (
+            {c.created_at && (
               <div
                 className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground"
                 title={tSidebar("customerSince")}
@@ -279,7 +308,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="truncate">
                   {tSidebar("customerSince")}{" "}
-                  {format(new Date(contact.created_at), "d MMM yyyy", { locale: ptBR })}
+                  {format(new Date(c.created_at), "d MMM yyyy", { locale: ptBR })}
                 </span>
               </div>
             )}
@@ -468,7 +497,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           onOpenChange={setDealFormOpen}
           pipelineId={pipelineId}
           stages={stages}
-          defaultContactId={contact.id}
+          defaultContactId={c.id}
           onSaved={() => {
             setDealFormOpen(false);
             fetchContactData();

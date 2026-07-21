@@ -157,10 +157,13 @@ export interface ContactNote {
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
+export type ChatType = 'direct' | 'group';
+
 export interface Conversation {
   id: string;
   user_id: string;
-  contact_id: string;
+  /** Null for group conversations (migration 042) — direct chats always have one. */
+  contact_id: string | null;
   status: ConversationStatus;
   assigned_agent_id?: string;
   last_message_text?: string;
@@ -169,6 +172,15 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   contact?: Contact;
+  /** 'group' for WhatsApp groups (migration 042) — no bots ever run
+   *  here, only human view/reply. Defaults to 'direct'. */
+  chat_type?: ChatType;
+  /** The group's WhatsApp JID (e.g. "1234567890-123@g.us"). Set only
+   *  when chat_type === 'group'; also the send target. */
+  group_jid?: string | null;
+  /** Group name as reported by WhatsApp. Falls back to group_jid in
+   *  the UI when unset. */
+  group_subject?: string | null;
   /**
    * AI auto-reply state for this thread (migration 029 + 033):
    *  - `ai_autoreply_disabled` — the bot is paused here (a human took
@@ -268,6 +280,10 @@ export interface Message {
    * ambiguous. Drives the origin badge in the inbox. Migration 038.
    */
   source?: 'crm' | 'phone' | 'api' | 'bot' | null;
+  /** Who sent this within a GROUP conversation — direct-chat messages
+   *  leave these null (sender is the conversation's contact). Migration 042. */
+  participant_phone?: string | null;
+  participant_name?: string | null;
 }
 
 export type ReactionActor = 'customer' | 'agent';

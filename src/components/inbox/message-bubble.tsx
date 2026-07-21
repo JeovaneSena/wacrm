@@ -398,6 +398,13 @@ export function MessageBubble({
               ),
         )}
       >
+        {/* Group attribution — inbound group messages carry a per-
+            participant sender; direct chats never set these. */}
+        {!isAgent && (message.participant_name || message.participant_phone) && (
+          <p className="mb-0.5 truncate text-xs font-semibold text-primary">
+            {message.participant_name || message.participant_phone}
+          </p>
+        )}
         {reply && (
           <ReplyQuote
             authorLabel={reply.authorLabel}

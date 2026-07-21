@@ -26,6 +26,7 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  Users,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -629,7 +630,10 @@ export function MessageThread({
     (m: Message): string => {
       const isAgentMsg =
         m.sender_type === "agent" || m.sender_type === "bot";
-      return isAgentMsg ? t("you") : contactDisplayName;
+      if (isAgentMsg) return t("you");
+      // Group inbound messages carry per-participant attribution;
+      // direct chats fall back to the contact's display name.
+      return m.participant_name || m.participant_phone || contactDisplayName;
     },
     [contactDisplayName],
   );
@@ -733,7 +737,9 @@ export function MessageThread({
   // Empty state — same WhatsApp-style doodle background as the active
   // thread below, so swapping between empty/selected doesn't change the
   // pattern under the user's eye.
-  if (!conversation || !contact) {
+  const isGroup = conversation?.chat_type === "group";
+
+  if (!conversation || (!contact && !isGroup)) {
     return (
       <div className={cn("flex flex-1 flex-col items-center justify-center", DOODLE_BG_CLASSES)}>
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -749,7 +755,9 @@ export function MessageThread({
     );
   }
 
-  const displayName = contact.name || contact.phone;
+  const displayName = isGroup
+    ? conversation.group_subject || conversation.group_jid || t("unknownContact")
+    : contact!.name || contact!.phone;
   const messageGroups = groupMessagesByDate(messages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
@@ -787,9 +795,11 @@ export function MessageThread({
             </button>
           )}
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-            {contact.avatar_url ? (
+            {isGroup ? (
+              <Users className="h-4 w-4 text-muted-foreground" />
+            ) : contact!.avatar_url ? (
               <img
-                src={contact.avatar_url}
+                src={contact!.avatar_url}
                 alt={displayName}
                 className="h-9 w-9 rounded-full object-cover"
               />
@@ -798,8 +808,17 @@ export function MessageThread({
             )}
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
-            <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
+            <div className="flex items-center gap-1.5">
+              <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
+              {isGroup && (
+                <span className="shrink-0 rounded-full border border-border bg-muted px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t("groupBadge")}
+                </span>
+              )}
+            </div>
+            <p className="truncate text-xs text-muted-foreground">
+              {isGroup ? t("groupSubtitle") : contact!.phone}
+            </p>
           </div>
         </div>
 

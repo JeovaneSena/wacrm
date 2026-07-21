@@ -212,22 +212,35 @@ export async function sendMessageToConversation(
     throw new SendMessageError('not_found', 'Conversation not found', 404);
   }
 
+  const isGroup = conversation.chat_type === 'group';
   const contact = conversation.contact;
-  if (!contact?.phone) {
-    throw new SendMessageError(
-      'bad_request',
-      'Contact phone number not found',
-      400
-    );
-  }
 
-  const sanitizedPhone = sanitizePhoneForMeta(contact.phone);
-  if (!isValidE164(sanitizedPhone)) {
-    throw new SendMessageError(
-      'bad_request',
-      'Invalid phone number format',
-      400
-    );
+  // Groups send to the raw WhatsApp group JID (e.g.
+  // "123456-789@g.us") — sanitizePhoneForMeta/isValidE164 are E.164
+  // phone checks and would mangle/reject a JID, so they're skipped
+  // entirely for this path.
+  let sanitizedPhone: string;
+  if (isGroup) {
+    if (!conversation.group_jid) {
+      throw new SendMessageError('bad_request', 'Group JID not found', 400);
+    }
+    sanitizedPhone = conversation.group_jid;
+  } else {
+    if (!contact?.phone) {
+      throw new SendMessageError(
+        'bad_request',
+        'Contact phone number not found',
+        400
+      );
+    }
+    sanitizedPhone = sanitizePhoneForMeta(contact.phone);
+    if (!isValidE164(sanitizedPhone)) {
+      throw new SendMessageError(
+        'bad_request',
+        'Invalid phone number format',
+        400
+      );
+    }
   }
 
   // WhatsApp config, account-scoped.
@@ -391,8 +404,11 @@ export async function sendMessageToConversation(
     .eq('id', conversationId);
 
   // Pause any active Flow run for this contact — the agent stepping in
-  // is the strongest "yield, human is here" signal. Best-effort.
+  // is the strongest "yield, human is here" signal. Best-effort. No-op
+  // for groups: there's no contact to key a flow run on, and flows
+  // never run in groups in the first place.
   try {
+    if (!isGroup && contact) {
     const { error: pauseErr } = await supabaseAdmin()
       .from('flow_runs')
       .update({
@@ -405,6 +421,7 @@ export async function sendMessageToConversation(
       .eq('status', 'active');
     if (pauseErr) {
       console.error('[flows] pause-on-agent-send failed:', pauseErr.message);
+    }
     }
   } catch (err) {
     console.error(

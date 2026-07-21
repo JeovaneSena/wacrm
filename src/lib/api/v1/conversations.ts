@@ -12,7 +12,8 @@ import type { Conversation, Message } from '@/types';
 
 export interface ApiConversation {
   id: string;
-  contact_id: string;
+  /** Null for a group conversation (migration 042) — direct chats always have one. */
+  contact_id: string | null;
   status: string;
   assigned_agent_id: string | null;
   last_message_text: string | null;

@@ -195,11 +195,13 @@ async function processWebhook(
 
   const message = body.message
 
-  // Groups aren't modeled in this CRM's contact/conversation schema
-  // (conversations are 1:1 per contact.phone) — same scope the Meta
-  // Cloud API version had, since Meta's API has no group concept at
-  // all. Skip rather than mis-attribute a group thread to one contact.
-  if (message.isGroup) return
+  // Groups (migration 042) get their own conversation — view + human
+  // reply only. No bots (flows/automations/AI) ever run there; that
+  // gate lives inside processGroupMessage, not here.
+  if (message.isGroup) {
+    await processGroupMessage(message, body.chat, config)
+    return
+  }
 
   // fromMe: we sent this — either via this CRM (send-message.ts already
   // persisted it synchronously) or directly from the paired phone /
@@ -212,6 +214,169 @@ async function processWebhook(
   }
 
   await processMessage(message, body.chat, config)
+}
+
+/**
+ * Find-or-create a group conversation by JID. Mirrors
+ * findOrCreateConversation's race handling (unique index +
+ * catch-and-refetch on 23505) — see migration 042.
+ */
+async function findOrCreateGroupConversation(
+  accountId: string,
+  configOwnerUserId: string,
+  groupJid: string,
+  subject: string | null,
+) {
+  const { data: existing } = await supabaseAdmin()
+    .from('conversations')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('group_jid', groupJid)
+    .maybeSingle()
+
+  if (existing) {
+    // Keep the subject fresh (group name changes happen).
+    if (subject && subject !== existing.group_subject) {
+      await supabaseAdmin()
+        .from('conversations')
+        .update({ group_subject: subject })
+        .eq('id', existing.id)
+      existing.group_subject = subject
+    }
+    return { conversation: existing, created: false }
+  }
+
+  const { data: newConv, error: createError } = await supabaseAdmin()
+    .from('conversations')
+    .insert({
+      account_id: accountId,
+      user_id: configOwnerUserId,
+      contact_id: null,
+      chat_type: 'group',
+      group_jid: groupJid,
+      group_subject: subject,
+    })
+    .select()
+    .single()
+
+  if (createError) {
+    if (isUniqueViolation(createError)) {
+      const { data: raced } = await supabaseAdmin()
+        .from('conversations')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('group_jid', groupJid)
+        .maybeSingle()
+      if (raced) return { conversation: raced, created: false }
+    }
+    console.error('[uazapi webhook] error creating group conversation:', createError)
+    return null
+  }
+
+  return { conversation: newConv, created: true }
+}
+
+/**
+ * Inbound/outbound-echo handling for WhatsApp groups. Deliberately
+ * thin compared to processMessage: no contact, no flows/automations/AI
+ * dispatch, no first-message/interactive tracking — groups are a
+ * human-only view+reply surface (see plan: "Grupos na Caixa de
+ * Entrada"). Reactions/swipe-replies are skipped for the same reason
+ * that kept processMessage lean before those were added — v1 scope.
+ */
+async function processGroupMessage(
+  message: UazapiMessage,
+  chat: UazapiChat | undefined,
+  config: { account_id: string; user_id: string; server_url: string; instance_token: string }
+) {
+  const groupJid = message.chatid
+  if (!groupJid) return
+
+  const subject = chat?.wa_contactName || chat?.name || null
+  const convResult = await findOrCreateGroupConversation(
+    config.account_id,
+    config.user_id,
+    groupJid,
+    subject,
+  )
+  if (!convResult) return
+  const conversation = convResult.conversation
+
+  if (convResult.created) {
+    await dispatchWebhookEvent(supabaseAdmin(), config.account_id, 'conversation.created', {
+      conversation_id: conversation.id,
+      contact_id: null,
+    })
+  }
+
+  const { contentText, mediaUrl, contentType } = parseMessageContent(message)
+
+  if (message.fromMe) {
+    // Echo of our own message sent from the phone/WhatsApp Web —
+    // dedupe against a CRM-originated send the same way 1:1 does.
+    const candidateIds = [message.id, message.messageid].filter(Boolean)
+    const { data: existing } = await supabaseAdmin()
+      .from('messages')
+      .select('id')
+      .in('message_id', candidateIds)
+      .limit(1)
+      .maybeSingle()
+    if (existing) return
+
+    const { error: msgError } = await supabaseAdmin().from('messages').insert({
+      conversation_id: conversation.id,
+      sender_type: 'agent',
+      sender_id: null,
+      source: 'phone',
+      content_type: contentType,
+      content_text: contentText,
+      media_url: mediaUrl,
+      message_id: message.id,
+      status: 'sent',
+      created_at: new Date(message.messageTimestamp).toISOString(),
+    })
+    if (msgError) {
+      console.error('[uazapi webhook] error inserting group outbound echo:', msgError)
+      return
+    }
+  } else {
+    const senderJid = message.sender_pn || ''
+    const participantPhone = normalizePhone(senderJid.split('@')[0]) || null
+    const participantName = message.senderName || participantPhone || null
+
+    const { error: msgError } = await supabaseAdmin().from('messages').insert({
+      conversation_id: conversation.id,
+      sender_type: 'customer',
+      content_type: contentType,
+      content_text: contentText,
+      media_url: mediaUrl,
+      message_id: message.id,
+      status: 'delivered',
+      created_at: new Date(message.messageTimestamp).toISOString(),
+      participant_phone: participantPhone,
+      participant_name: participantName,
+    })
+    if (msgError) {
+      console.error('[uazapi webhook] error inserting group message:', msgError)
+      return
+    }
+  }
+
+  const preview = message.fromMe
+    ? contentText || `[${contentType}]`
+    : `${message.senderName || 'Alguém'}: ${contentText || `[${contentType}]`}`
+
+  await supabaseAdmin()
+    .from('conversations')
+    .update({
+      last_message_text: preview.slice(0, 200),
+      last_message_at: new Date(message.messageTimestamp).toISOString(),
+      unread_count: message.fromMe
+        ? (conversation.unread_count || 0)
+        : (conversation.unread_count || 0) + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', conversation.id)
 }
 
 /**

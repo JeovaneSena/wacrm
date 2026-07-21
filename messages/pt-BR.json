@@ -170,7 +170,9 @@
       "noConversations": "Nenhuma conversa encontrada",
       "noMessagesYet": "Nenhuma mensagem ainda",
       "unknown": "Desconhecido",
-      "newConversation": "Nova conversa"
+      "newConversation": "Nova conversa",
+      "unknownGroup": "Grupo sem nome",
+      "filterGroups": "Grupos"
     },
     "messageThread": {
       "backToConversations": "Voltar para conversas",
@@ -203,7 +205,9 @@
       "failedAssign": "Falha ao atualizar a atribuição",
       "mediaLightboxTitle": "Visualização de mídia",
       "downloadMedia": "Baixar",
-      "documentFallback": "Documento"
+      "documentFallback": "Documento",
+      "groupBadge": "Grupo",
+      "groupSubtitle": "Conversa em grupo"
     },
     "composer": {
       "draftHint": "Toque em ✨ para rascunhar uma resposta com IA — você pode editar antes de enviar",
@@ -294,7 +298,9 @@
       "removeTag": "Clique para remover",
       "noTagsAccount": "Nenhuma etiqueta criada — crie em Configurações",
       "addDeal": "Criar negócio",
-      "customerSince": "Cliente desde"
+      "customerSince": "Cliente desde",
+      "unknownGroup": "Grupo sem nome",
+      "groupNoContact": "Grupo — sem contato vinculado. Etiquetas, negócios e notas são por contato individual."
     },
     "aiBanner": {
       "pausedTitle": "O assistente de IA está pausado aqui",

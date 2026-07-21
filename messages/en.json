@@ -170,7 +170,9 @@
       "noConversations": "No conversations found",
       "noMessagesYet": "No messages yet",
       "unknown": "Unknown",
-      "newConversation": "New conversation"
+      "newConversation": "New conversation",
+      "unknownGroup": "Unnamed group",
+      "filterGroups": "Groups"
     },
     "messageThread": {
       "backToConversations": "Back to conversations",
@@ -203,7 +205,9 @@
       "failedAssign": "Failed to update assignment",
       "mediaLightboxTitle": "Media preview",
       "downloadMedia": "Download",
-      "documentFallback": "Document"
+      "documentFallback": "Document",
+      "groupBadge": "Group",
+      "groupSubtitle": "Group conversation"
     },
     "composer": {
       "draftHint": "Tap the ✨ to draft a reply with AI — you can edit it before sending",
@@ -294,7 +298,9 @@
       "removeTag": "Click to remove",
       "noTagsAccount": "No tags yet — create them in Settings",
       "addDeal": "Create deal",
-      "customerSince": "Customer since"
+      "customerSince": "Customer since",
+      "unknownGroup": "Unnamed group",
+      "groupNoContact": "Group — no linked contact. Tags, deals, and notes are per individual contact."
     },
     "aiBanner": {
       "pausedTitle": "AI assistant is paused here",
