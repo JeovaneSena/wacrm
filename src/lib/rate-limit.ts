@@ -125,7 +125,10 @@ export const RATE_LIMITS = {
    *  retry a handful of times under flaky connectivity without
    *  enabling brute-force token enumeration. With 256-bit tokens the
    *  enumeration risk is theoretical; this is belt-and-braces. */
-  invitationPeek: { limit: 30, windowMs: 60_000 },
+  // 60/60s — the new-account invite flow (/join → /signup redirect)
+  // burns two peeks per visit against the same per-IP bucket; 30 left
+  // no room for a human retry before tripping the limit.
+  invitationPeek: { limit: 60, windowMs: 60_000 },
   /** Invitation redeem (authed, per-IP+user). Tighter than peek —
    *  successful redemption mutates two profiles and an invite row, so
    *  the abuse surface is "spam join attempts." */

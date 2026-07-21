@@ -1583,6 +1583,9 @@
     "inviteOnlyTitle": "Signup is invite-only",
     "inviteOnlyDesc": "This CRM does not accept open signups. Ask an administrator for an invite link.",
     "inviteInvalid": "Invite invalid, expired, or already used. Ask an administrator for a new link.",
+    "rateLimitedTitle": "Too many attempts",
+    "rateLimitedDesc": "Wait a minute and try again. Avoid opening the same invite link in multiple tabs.",
+    "tryAgain": "Try again",
     "errEmailTaken": "This email is already registered — sign in instead.",
     "errCreate": "Failed to create the account. Try again."
   },

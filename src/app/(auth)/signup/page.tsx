@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Loader2, Lock, UsersRound } from "lucide-react";
+import { parsePeekResponse } from "@/lib/auth/invite-peek";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -45,20 +46,30 @@ function SignupPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [inviteStatus, setInviteStatus] = useState<
-    "missing" | "checking" | "valid" | "invalid"
+    "missing" | "checking" | "valid" | "invalid" | "rate_limited"
   >(inviteToken ? "checking" : "missing");
+  const [retryTick, setRetryTick] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
     if (!inviteToken) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInviteStatus("checking");
     (async () => {
       try {
         const res = await fetch(
           `/api/invitations/${encodeURIComponent(inviteToken)}/peek`,
         );
-        const data = await res.json();
-        if (!cancelled) setInviteStatus(data?.ok ? "valid" : "invalid");
+        const peek = await parsePeekResponse(res);
+        if (cancelled) return;
+        if (peek.ok) {
+          setInviteStatus("valid");
+        } else if (peek.reason === "rate_limited") {
+          setInviteStatus("rate_limited");
+        } else {
+          setInviteStatus("invalid");
+        }
       } catch {
         if (!cancelled) setInviteStatus("invalid");
       }
@@ -66,7 +77,7 @@ function SignupPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [inviteToken]);
+  }, [inviteToken, retryTick]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,8 +145,12 @@ function SignupPageInner() {
     }
   };
 
-  // No token / invalid token — signup is closed to the public.
-  if (inviteStatus === "missing" || inviteStatus === "invalid") {
+  // No token / invalid token / rate-limited — signup is closed to the public.
+  if (
+    inviteStatus === "missing" ||
+    inviteStatus === "invalid" ||
+    inviteStatus === "rate_limited"
+  ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md border-border bg-card">
@@ -144,15 +159,27 @@ function SignupPageInner() {
               <Lock className="h-6 w-6 text-primary" />
             </div>
             <CardTitle className="text-xl text-foreground">
-              {t("inviteOnlyTitle")}
+              {inviteStatus === "rate_limited"
+                ? t("rateLimitedTitle")
+                : t("inviteOnlyTitle")}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              {inviteStatus === "invalid"
-                ? t("inviteInvalid")
-                : t("inviteOnlyDesc")}
+              {inviteStatus === "rate_limited"
+                ? t("rateLimitedDesc")
+                : inviteStatus === "invalid"
+                  ? t("inviteInvalid")
+                  : t("inviteOnlyDesc")}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-2">
+            {inviteStatus === "rate_limited" && (
+              <Button
+                className="w-full"
+                onClick={() => setRetryTick((n) => n + 1)}
+              >
+                {t("tryAgain")}
+              </Button>
+            )}
             <Link href="/login">
               <Button
                 variant="outline"

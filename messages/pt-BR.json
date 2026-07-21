@@ -1583,6 +1583,9 @@
     "inviteOnlyTitle": "Cadastro somente por convite",
     "inviteOnlyDesc": "Este CRM não aceita cadastros abertos. Peça um link de convite a um administrador.",
     "inviteInvalid": "Convite inválido, expirado ou já utilizado. Peça um novo link a um administrador.",
+    "rateLimitedTitle": "Muitas tentativas seguidas",
+    "rateLimitedDesc": "Aguarde um minuto e tente de novo. Evite abrir o mesmo link de convite em várias abas.",
+    "tryAgain": "Tentar de novo",
     "errEmailTaken": "Este email já possui cadastro — faça login.",
     "errCreate": "Falha ao criar a conta. Tente novamente."
   },

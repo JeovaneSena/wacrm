@@ -53,38 +53,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { createClient } from '@/lib/supabase/client';
-
-interface PeekOk {
-  ok: true;
-  account_name: string;
-  role: 'admin' | 'agent' | 'viewer';
-  /** 'member' joins the inviter's account; 'new_account' authorizes
-   *  creating an independent workspace (handled on /signup). */
-  kind?: 'member' | 'new_account';
-  expires_at: string;
-}
-interface PeekFail {
-  ok: false;
-  reason: 'not_found' | 'used' | 'expired' | 'server_error' | 'rate_limited';
-}
-type PeekResult = PeekOk | PeekFail;
-
-/**
- * Parse the peek response defensively. The endpoint only returns the
- * `{ok, reason?}` shape on 2xx — a 429 (rate limit) or any other
- * non-OK status returns a differently-shaped body (`{error, ...}`),
- * which used to be cast straight to `PeekResult` and rendered as
- * `fail_undefined_title` (peek.reason was literally `undefined`).
- * Checking `res.ok` first and mapping anything else to a known
- * reason keeps every path on a valid i18n key.
- */
-async function parsePeekResponse(res: Response): Promise<PeekResult> {
-  if (res.status === 429) return { ok: false, reason: 'rate_limited' };
-  if (!res.ok) return { ok: false, reason: 'server_error' };
-  const body = await res.json().catch(() => null);
-  if (body && typeof body === 'object' && 'ok' in body) return body as PeekResult;
-  return { ok: false, reason: 'server_error' };
-}
+import { parsePeekResponse, type PeekResult } from '@/lib/auth/invite-peek';
 
 export default function JoinPage() {
   const t = useTranslations('JoinInvite');
