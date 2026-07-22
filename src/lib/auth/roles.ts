@@ -2,11 +2,23 @@
 // Account role helpers — pure, unit-testable, no I/O.
 //
 // Mirrors the `account_role_enum` Postgres type from migration
-// 017_account_sharing.sql. The hierarchy is intentionally a flat
-// ordinal (owner=4 … viewer=1) — it matches the same CASE
-// expression the `is_account_member(account_id, min_role)` SQL
-// helper uses, so server-side TypeScript guards and database-side
-// RLS speak the same language.
+// 017_account_sharing.sql — that enum still has a 4th value
+// ('viewer') sitting unused; removing an enum value in Postgres
+// means recreating the whole type, not worth it for a value no
+// row has ever used. The app layer here is the actual source of
+// truth: `viewer` is simply absent from this union, so nothing
+// in TS/UI can assign or check it, and `isAccountRole` rejects it
+// as invalid input even if some future bug tried to send it.
+//
+// The hierarchy is intentionally a flat ordinal (owner=3 …
+// agent=1) — it matches the same CASE expression the
+// `is_account_member(account_id, min_role)` SQL helper uses (that
+// function's own CASE still has a 'viewer' branch ranked below
+// agent; since the app never sends 'viewer', it's dead code there
+// too, harmless to leave as-is).
+//
+// Display labels: Master (owner) / Gestor (admin) / Agente (agent)
+// — see `Settings.roles` in the i18n catalogs, not this file.
 //
 // Predicates (`canManageMembers`, `canEditSettings`, …) are the
 // single source of truth for "what can this role do?" — both
@@ -15,11 +27,10 @@
 // changes a one-file diff.
 // ============================================================
 
-export type AccountRole = "owner" | "admin" | "agent" | "viewer";
+export type AccountRole = "owner" | "admin" | "agent";
 
 /** Ordered list of every valid role, lowest privilege first. */
 export const ACCOUNT_ROLES: readonly AccountRole[] = [
-  "viewer",
   "agent",
   "admin",
   "owner",
@@ -32,12 +43,10 @@ export const ACCOUNT_ROLES: readonly AccountRole[] = [
 export function roleRank(role: AccountRole): number {
   switch (role) {
     case "owner":
-      return 4;
-    case "admin":
       return 3;
-    case "agent":
+    case "admin":
       return 2;
-    case "viewer":
+    case "agent":
       return 1;
   }
 }
@@ -83,19 +92,12 @@ export function canEditSettings(role: AccountRole): boolean {
 /**
  * Owner / admin / agent: write operational data — send messages,
  * create contacts, move deals, run broadcasts, edit automations.
- * Viewers are read-only.
+ * Every role can do this now that viewer (read-only) is gone; kept
+ * as a predicate rather than inlined `true` since a future role
+ * tier below agent would only need to change this one function.
  */
 export function canSendMessages(role: AccountRole): boolean {
   return hasMinRole(role, "agent");
-}
-
-/**
- * Viewer: read-only across everything. Provided as a positive
- * predicate so UI gates read naturally (`if (canViewOnly(role))`
- * shows the "Read-only" tooltip without inverting `canSendMessages`).
- */
-export function canViewOnly(role: AccountRole): boolean {
-  return role === "viewer";
 }
 
 /** Owner only: irreversible destructive operations. */

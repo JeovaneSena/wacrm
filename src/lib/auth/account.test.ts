@@ -162,7 +162,7 @@ describe("getCurrentAccount", () => {
       user: { id: "user-1" },
       byTable: {
         profiles: {
-          data: { account_id: "acct-1", account_role: "viewer" },
+          data: { account_id: "acct-1", account_role: "agent" },
           error: null,
         },
         accounts: { data: null, error: null },

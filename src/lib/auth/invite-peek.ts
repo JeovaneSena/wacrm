@@ -15,7 +15,7 @@
 export interface PeekOk {
   ok: true;
   account_name: string;
-  role: 'admin' | 'agent' | 'viewer';
+  role: 'admin' | 'agent';
   /** 'member' joins the inviter's account; 'new_account' authorizes
    *  creating an independent workspace (handled on /signup). */
   kind?: 'member' | 'new_account';

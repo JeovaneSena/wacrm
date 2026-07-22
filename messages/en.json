@@ -31,7 +31,6 @@
     "roleOwner": "Owner",
     "roleAdmin": "Admin",
     "roleAgent": "Agent",
-    "roleViewer": "Viewer",
     "closeMenu": "Close menu",
     "defaultUser": "User",
     "defaultAvatar": "Avatar",
@@ -1219,11 +1218,9 @@
     },
     "roles": {
       "admin": "Admin",
-      "adminHint": "Manage members + everything",
+      "adminHint": "Manage members, invites and settings + everything Agent does",
       "agent": "Agent",
-      "agentHint": "Use features; no settings",
-      "viewer": "Viewer",
-      "viewerHint": "Read-only across the app",
+      "agentHint": "Uses day-to-day features; no access to settings",
       "owner": "Owner",
       "ownerHint": "Full control over account and billing"
     },

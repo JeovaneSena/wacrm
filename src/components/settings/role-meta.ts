@@ -2,7 +2,6 @@ import {
   Crown,
   Shield,
   UserCog,
-  UserIcon,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -39,13 +38,5 @@ export const ROLE_META: Record<
     label: 'agent',
     variant: 'muted',
     className: 'border-border bg-muted text-muted-foreground',
-  },
-  viewer: {
-    icon: UserIcon,
-    label: 'viewer',
-    variant: 'muted',
-    // Outline-only so it stays quieter than the filled Agent chip in
-    // both modes — bg-card would blend into a card surface in light mode.
-    className: 'border-border bg-transparent text-muted-foreground',
   },
 };

@@ -16,7 +16,7 @@
 // Role-gating
 //   The tab itself is reachable by any member, but mutation buttons
 //   are wrapped in `<RequireRole min="admin">` / `useCan` so an
-//   agent or viewer sees the roster read-only. The server-side
+//   agent sees the roster read-only. The server-side
 //   RPCs (set_member_role, remove_account_member) double-check
 //   the role anyway.
 // ============================================================
@@ -90,7 +90,7 @@ interface Member {
 
 interface Invitation {
   id: string;
-  role: 'admin' | 'agent' | 'viewer';
+  role: 'admin' | 'agent';
   kind?: 'member' | 'new_account';
   label: string | null;
   created_at: string;
@@ -99,7 +99,7 @@ interface Invitation {
 
 interface AcceptedInvitation {
   id: string;
-  role: 'admin' | 'agent' | 'viewer';
+  role: 'admin' | 'agent';
   kind?: 'member' | 'new_account';
   label: string | null;
   created_at: string;
@@ -110,13 +110,12 @@ interface AcceptedInvitation {
 const EDITABLE_ROLES: { value: AccountRole }[] = [
   { value: 'admin' },
   { value: 'agent' },
-  { value: 'viewer' },
 ];
 
 // Per-role chip metadata (icon / label / colour) lives in the shared
 // ROLE_META module so this roster and the Overview identity chip can't
 // drift. The colour scale runs amber (owner — scarce, immutable) →
-// primary (admin) → muted (agent / viewer).
+// primary (admin) → muted (agent).
 
 function fmtDate(iso: string): string {
   // Match the rest of the dashboard's locale-light formatting.

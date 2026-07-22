@@ -28,10 +28,9 @@
     "beta": "Beta",
     "unreadConversations": "{count} {count, plural, =1 {conversa não lida} other {conversas não lidas}}",
     "unreadNotifications": "{count} {count, plural, =1 {notificação não lida} other {notificações não lidas}}",
-    "roleOwner": "Proprietário",
-    "roleAdmin": "Admin",
-    "roleAgent": "Atendente",
-    "roleViewer": "Visualizador",
+    "roleOwner": "Master",
+    "roleAdmin": "Gestor",
+    "roleAgent": "Agente",
     "closeMenu": "Fechar menu",
     "defaultUser": "Usuário",
     "defaultAvatar": "Avatar",
@@ -1218,13 +1217,11 @@
       }
     },
     "roles": {
-      "admin": "Admin",
-      "adminHint": "Gerencia membros + tudo",
-      "agent": "Atendente",
-      "agentHint": "Usa os recursos; sem configurações",
-      "viewer": "Visualizador",
-      "viewerHint": "Somente leitura em todo o app",
-      "owner": "Proprietário",
+      "admin": "Gestor",
+      "adminHint": "Gerencia membros, convites e configurações + tudo que o Agente faz",
+      "agent": "Agente",
+      "agentHint": "Usa os recursos do dia a dia; sem acesso a configurações",
+      "owner": "Master",
       "ownerHint": "Controle total da conta e faturamento"
     },
     "whatsapp": {

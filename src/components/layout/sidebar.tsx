@@ -55,13 +55,6 @@ const ROLE_CHIP: Record<
     className:
       "border-border bg-muted text-foreground",
   },
-  viewer: {
-    icon: User,
-    labelKey: "roleViewer",
-    // Muted slate: read-only role; visually quieter than agent.
-    className:
-      "border-border bg-card text-muted-foreground",
-  },
 };
 import {
   Avatar,
