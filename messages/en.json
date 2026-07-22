@@ -1142,7 +1142,9 @@
       "transferring": "Transferring…",
       "transferBtn": "Transfer ownership",
       "transferredToast": "{name} is now the account owner.",
-      "kindNewAccountBadge": "New account"
+      "kindNewAccountBadge": "New account",
+      "acceptedInvitations": "Accepted invitations",
+      "acceptedOn": "Accepted on {date}"
     },
     "invite": {
       "inviteCreated": "Invite created",

@@ -1142,7 +1142,9 @@
       "transferring": "Transferindo…",
       "transferBtn": "Transferir propriedade",
       "transferredToast": "{name} agora é o proprietário da conta.",
-      "kindNewAccountBadge": "Conta nova"
+      "kindNewAccountBadge": "Conta nova",
+      "acceptedInvitations": "Convites aceitos",
+      "acceptedOn": "Aceito em {date}"
     },
     "invite": {
       "inviteCreated": "Convite criado",

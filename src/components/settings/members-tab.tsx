@@ -97,6 +97,15 @@ interface Invitation {
   expires_at: string;
 }
 
+interface AcceptedInvitation {
+  id: string;
+  role: 'admin' | 'agent' | 'viewer';
+  kind?: 'member' | 'new_account';
+  label: string | null;
+  created_at: string;
+  accepted_at: string;
+}
+
 // These roles are translated via `useTranslations("Settings.roles")` where they are used.
 const EDITABLE_ROLES: { value: AccountRole }[] = [
   { value: 'admin' },
@@ -136,6 +145,7 @@ export function MembersTab() {
 
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [acceptedInvites, setAcceptedInvites] = useState<AcceptedInvitation[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -170,10 +180,15 @@ export function MembersTab() {
           toast.error(payload.error || 'Failed to load invitations');
           return;
         }
-        const idata = (await ires.json()) as { invitations: Invitation[] };
+        const idata = (await ires.json()) as {
+          invitations: Invitation[];
+          accepted?: AcceptedInvitation[];
+        };
         setInvitations(idata.invitations);
+        setAcceptedInvites(idata.accepted ?? []);
       } else {
         setInvitations([]);
+        setAcceptedInvites([]);
       }
     } catch (err) {
       console.error('[MembersTab] load error:', err);
@@ -653,6 +668,62 @@ export function MembersTab() {
           )}
         </div>
       </RequireRole>
+
+      {/* Recently accepted invitations — no actions, just a record of
+          who redeemed what and when. `new_account` invites create an
+          independent workspace, so their invitee never shows up in
+          the roster above; this is the only place that confirms the
+          invite was actually used. */}
+      {canManageMembers && acceptedInvites.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <Mail className="size-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">
+              {t('acceptedInvitations')}
+            </h3>
+            <Badge className="bg-muted text-muted-foreground border-border">
+              {acceptedInvites.length}
+            </Badge>
+          </div>
+          <Card>
+            <CardContent className="p-0">
+              <ul className="divide-y divide-border">
+                {acceptedInvites.map((inv) => {
+                  const inviteRoleMeta = ROLE_META[inv.role];
+                  const InviteRoleIcon = inviteRoleMeta.icon;
+                  return (
+                    <li key={inv.id} className="flex items-center gap-4 px-4 py-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">
+                            {inv.label || t('untitledInvite')}
+                          </span>
+                          {inv.kind === 'new_account' ? (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                              <Sparkle className="size-3" />
+                              {t('kindNewAccountBadge')}
+                            </span>
+                          ) : (
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${inviteRoleMeta.className}`}
+                            >
+                              <InviteRoleIcon className="size-3" />
+                              {tRoles(inv.role)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {t('acceptedOn', { date: fmtDate(inv.accepted_at) })}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <InviteMemberDialog
         open={inviteOpen}
