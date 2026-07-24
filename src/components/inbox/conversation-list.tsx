@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuth } from "@/hooks/use-auth";
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -65,7 +66,22 @@ export function ConversationList({
   ], [t]);
 
   const [search, setSearch] = useState("");
+  // Agente opens straight into "Minhas" — Master/Gestor still default
+  // to "Todas" since they're the ones triaging the whole queue.
+  // `accountRole` is null until the profile fetch resolves, so this
+  // only ever "upgrades" the initial state (via the effect below), it
+  // never has to downgrade it.
+  const { accountRole } = useAuth();
   const [filter, setFilter] = useState<InboxFilter>("all");
+  const appliedRoleDefault = useRef(false);
+  useEffect(() => {
+    if (appliedRoleDefault.current || !accountRole) return;
+    appliedRoleDefault.current = true;
+    if (accountRole === "agent") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFilter("mine");
+    }
+  }, [accountRole]);
   const [loading, setLoading] = useState(true);
   // Contact-based filters (issue #272). Tags use OR logic (a conversation
   // matches if its contact carries any selected tag), consistent with
