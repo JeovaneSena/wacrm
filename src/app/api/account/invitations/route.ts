@@ -145,30 +145,39 @@ export async function GET() {
   try {
     const ctx = await requireRole("admin");
 
-    const [pendingRes, acceptedRes] = await Promise.all([
-      ctx.supabase
-        .from("account_invitations")
-        .select(
-          "id, role, kind, label, created_by_user_id, created_at, expires_at, accepted_at, accepted_by_user_id",
-        )
-        .eq("account_id", ctx.accountId)
-        .is("accepted_at", null)
-        .gt("expires_at", new Date().toISOString())
-        .order("created_at", { ascending: false }),
-      // Most recently redeemed invites. `accepted_by_user_id` points at
-      // auth.users (not profiles — no FK to join through), and for
-      // `kind='new_account'` that user isn't even a member of this
-      // account, so we don't try to resolve a name here — just the
-      // invite's own metadata + when it was redeemed. Capped at 20 so
-      // a long-lived account doesn't grow this response unbounded.
-      ctx.supabase
-        .from("account_invitations")
-        .select("id, role, kind, label, created_at, accepted_at")
-        .eq("account_id", ctx.accountId)
-        .not("accepted_at", "is", null)
-        .order("accepted_at", { ascending: false })
-        .limit(20),
-    ]);
+    // Team scoping (migration 047): Master (owner) sees every invite
+    // in the account; everyone else sees only invites THEY created —
+    // mirrors the same "who I personally invited" filter applied to
+    // GET /api/account/members.
+    const isMaster = ctx.role === "owner";
+
+    let pendingQuery = ctx.supabase
+      .from("account_invitations")
+      .select(
+        "id, role, kind, label, created_by_user_id, created_at, expires_at, accepted_at, accepted_by_user_id",
+      )
+      .eq("account_id", ctx.accountId)
+      .is("accepted_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false });
+    if (!isMaster) pendingQuery = pendingQuery.eq("created_by_user_id", ctx.userId);
+
+    // Most recently redeemed invites. `accepted_by_user_id` points at
+    // auth.users (not profiles — no FK to join through), and for
+    // `kind='new_account'` that user isn't even a member of this
+    // account, so we don't try to resolve a name here — just the
+    // invite's own metadata + when it was redeemed. Capped at 20 so
+    // a long-lived account doesn't grow this response unbounded.
+    let acceptedQuery = ctx.supabase
+      .from("account_invitations")
+      .select("id, role, kind, label, created_at, accepted_at, created_by_user_id")
+      .eq("account_id", ctx.accountId)
+      .not("accepted_at", "is", null)
+      .order("accepted_at", { ascending: false })
+      .limit(20);
+    if (!isMaster) acceptedQuery = acceptedQuery.eq("created_by_user_id", ctx.userId);
+
+    const [pendingRes, acceptedRes] = await Promise.all([pendingQuery, acceptedQuery]);
 
     if (pendingRes.error) {
       console.error("[GET /api/account/invitations] fetch error:", pendingRes.error);

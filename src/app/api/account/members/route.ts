@@ -10,6 +10,14 @@
 //   admin+. Agents and viewers see name + avatar + role + joined
 //   date only. This mirrors the design decision from the planning
 //   phase: "agent/viewer sees names only".
+//
+// Team scoping (migration 047)
+//   Owner (Master) sees the whole roster. Everyone else sees only
+//   themselves + members whose `invited_by_user_id` is the caller —
+//   i.e. "who I personally invited," not the whole account. This is
+//   a display filter, not an RLS boundary: a Gestor can still manage
+//   members account-wide via the mutation routes, this route just
+//   narrows what the tab renders.
 // ============================================================
 
 import { NextResponse } from "next/server";
@@ -25,6 +33,7 @@ interface ProfileRow {
   avatar_url: string | null;
   account_role: string;
   created_at: string;
+  invited_by_user_id: string | null;
 }
 
 export async function GET() {
@@ -35,7 +44,9 @@ export async function GET() {
     // the caller's, so this query is naturally account-scoped.
     const { data, error } = await ctx.supabase
       .from("profiles")
-      .select("user_id, full_name, email, avatar_url, account_role, created_at")
+      .select(
+        "user_id, full_name, email, avatar_url, account_role, created_at, invited_by_user_id",
+      )
       .eq("account_id", ctx.accountId)
       .order("created_at", { ascending: true });
 
@@ -48,12 +59,20 @@ export async function GET() {
     }
 
     const canSeeEmails = canManageMembers(ctx.role);
+    const isMaster = ctx.role === "owner";
 
     const members: AccountMember[] = (data as ProfileRow[]).flatMap((row) => {
       // Defensive: the DB enum should never let an unknown role
       // through, but if a migration ever broadens the enum without
       // updating TS, skip the row rather than crash the page.
       if (!isAccountRole(row.account_role)) return [];
+      if (
+        !isMaster &&
+        row.user_id !== ctx.userId &&
+        row.invited_by_user_id !== ctx.userId
+      ) {
+        return [];
+      }
       return [
         {
           user_id: row.user_id,
