@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
+import { useRequireMinRole } from '@/hooks/use-require-min-role'
 import { formatCurrency } from '@/lib/currency'
 import {
   MessageSquare,
@@ -45,6 +46,7 @@ import { useTranslations } from 'next-intl'
 type RangeDays = 7 | 30 | 90
 
 export default function DashboardPage() {
+  useRequireMinRole('admin')
   const t = useTranslations('Dashboard.page')
   const { defaultCurrency, isAdmin, isOwner } = useAuth()
   const canViewAgentPerformance = isAdmin || isOwner

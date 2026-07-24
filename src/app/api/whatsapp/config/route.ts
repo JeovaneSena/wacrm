@@ -79,7 +79,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const accountId = await resolveAccountId(supabase, user.id)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('account_id, account_role, invited_by_user_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    const accountId = profile?.account_id as string | undefined
     if (!accountId) {
       return NextResponse.json(
         { connected: false, reason: 'no_account', message: 'Your profile is not linked to an account.' },
@@ -87,11 +92,27 @@ export async function GET() {
       )
     }
 
-    const { data: config, error: configError } = await supabase
+    let { data: config, error: configError } = await supabase
       .from('whatsapp_config')
       .select('id, server_url, instance_token, instance_id, instance_name, status, owner_phone')
       .eq('user_id', user.id)
       .maybeSingle()
+
+    // Agente never connects a number themselves — this endpoint also
+    // backs the read-only "is WhatsApp connected" banners, so fall
+    // back to the inviting Gestor's number for THEM specifically.
+    // Gestor/Master with no config of their own stay "not configured"
+    // — showing someone else's status would hide that they still need
+    // to connect their own.
+    if (!config && profile?.account_role === 'agent' && profile.invited_by_user_id) {
+      const fallback = await supabase
+        .from('whatsapp_config')
+        .select('id, server_url, instance_token, instance_id, instance_name, status, owner_phone')
+        .eq('user_id', profile.invited_by_user_id as string)
+        .maybeSingle()
+      config = fallback.data
+      configError = fallback.error
+    }
 
     if (configError) {
       console.error('Error fetching whatsapp_config:', configError)

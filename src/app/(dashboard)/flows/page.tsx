@@ -20,6 +20,7 @@ import {
 
 import { useTranslations } from "next-intl";
 import { useCan } from "@/hooks/use-can";
+import { useRequireMinRole } from "@/hooks/use-require-min-role";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
 import {
@@ -83,6 +84,7 @@ const TEMPLATE_ICONS = {
 } as const;
 
 export default function FlowsPage() {
+  useRequireMinRole("admin");
   const router = useRouter();
   const canCreate = useCan("send-messages");
   const t = useTranslations("Flows.list");

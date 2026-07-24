@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useRequireMinRole } from "@/hooks/use-require-min-role";
 import type { Notification } from "@/types";
 import {
   Bell,
@@ -40,6 +41,7 @@ const TYPE_TITLE_KEY: Record<Notification["type"], string> = {
 };
 
 export default function NotificationsPage() {
+  useRequireMinRole("admin");
   const t = useTranslations("Notifications");
   const router = useRouter();
   const { accountId } = useAuth();

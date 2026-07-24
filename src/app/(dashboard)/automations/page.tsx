@@ -20,6 +20,7 @@ import {
 
 import { createClient } from "@/lib/supabase/client"
 import { useCan } from "@/hooks/use-can"
+import { useRequireMinRole } from "@/hooks/use-require-min-role"
 import { useTranslations } from "next-intl"
 import type { Automation } from "@/types"
 import { Button } from "@/components/ui/button"
@@ -59,6 +60,7 @@ const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
 }
 
 export default function AutomationsPage() {
+  useRequireMinRole("admin")
   const router = useRouter()
   const canCreate = useCan("send-messages")
   const t = useTranslations("Automations.list")

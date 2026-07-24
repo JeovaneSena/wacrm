@@ -187,15 +187,15 @@ export default function InboxPage() {
       if (!user) return;
 
       // whatsapp_config is one-row-per-OWNER now (migration 048, the
-      // Master/Gestor/Agente per-number model) — each person's banner
-      // reflects the number THEY own (Gestor) or, for Master, their
-      // own connection. Filtering by account_id alone would break
-      // once an account has more than one config row (RLS lets the
-      // owner see all of them, so `.maybeSingle()` would error on
-      // "more than one row").
+      // Master/Gestor/Agente per-number model). An Agente never owns a
+      // number themselves — only Master/Gestor connect one — so check
+      // MY OWN row first, and if I don't have one, fall back to the
+      // Gestor who invited me (profiles.invited_by_user_id, migration
+      // 047). Only a Master with nobody's number connected ends up
+      // "disconnected" for real.
       const { data: profile } = await supabase
         .from("profiles")
-        .select("account_id")
+        .select("account_id, invited_by_user_id")
         .eq("user_id", user.id)
         .maybeSingle();
       const accountId = profile?.account_id as string | undefined;
@@ -204,13 +204,30 @@ export default function InboxPage() {
         return;
       }
 
-      const { data } = await supabase
+      const { data: ownConfig } = await supabase
         .from("whatsapp_config")
         .select("status")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      setWhatsappConnected(data?.status === "connected");
+      if (ownConfig) {
+        setWhatsappConnected(ownConfig.status === "connected");
+        return;
+      }
+
+      const inviterId = profile?.invited_by_user_id as string | undefined;
+      if (!inviterId) {
+        setWhatsappConnected(false);
+        return;
+      }
+
+      const { data: inviterConfig } = await supabase
+        .from("whatsapp_config")
+        .select("status")
+        .eq("user_id", inviterId)
+        .maybeSingle();
+
+      setWhatsappConnected(inviterConfig?.status === "connected");
     };
 
     checkConnection();

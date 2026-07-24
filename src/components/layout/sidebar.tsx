@@ -24,7 +24,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import type { AccountRole } from "@/lib/auth/roles";
+import { hasMinRole, type AccountRole } from "@/lib/auth/roles";
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -78,17 +78,22 @@ interface NavItem {
    * Purely informational — doesn't affect routing or access.
    */
   beta?: boolean;
+  /** Hidden from Agente — configuration/reporting surfaces, not the
+   *  day-to-day conversation work an agent does. The linked pages
+   *  enforce this too (redirect to /inbox), so this is a declutter,
+   *  not the only gate. */
+  minRole?: AccountRole;
 }
 
 const navItems: NavItem[] = [
   { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
-  { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
-  { href: "/notifications", labelKey: "notifications", icon: Bell },
+  { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard, minRole: "admin" },
+  { href: "/notifications", labelKey: "notifications", icon: Bell, minRole: "admin" },
   { href: "/contacts", labelKey: "contacts", icon: Users },
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
-  { href: "/automations", labelKey: "automations", icon: Zap },
-  { href: "/flows", labelKey: "flows", icon: Workflow, beta: true },
-  { href: "/agents", labelKey: "aiAgents", icon: Bot },
+  { href: "/automations", labelKey: "automations", icon: Zap, minRole: "admin" },
+  { href: "/flows", labelKey: "flows", icon: Workflow, beta: true, minRole: "admin" },
+  { href: "/agents", labelKey: "aiAgents", icon: Bot, minRole: "admin" },
 ];
 
 const bottomNavItems = [
@@ -202,7 +207,9 @@ export function Sidebar({ open = false, onClose, totalUnread = 0 }: SidebarProps
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
+            {navItems
+              .filter((item) => !item.minRole || (accountRole && hasMinRole(accountRole, item.minRole)))
+              .map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/dashboard" && pathname.startsWith(item.href));

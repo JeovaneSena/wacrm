@@ -97,10 +97,13 @@ export function SettingsOverview({
       setCountsLoading(false);
     })();
 
-    // WhatsApp connection status — slower, independent.
+    // WhatsApp connection status — slower, independent. An Agente
+    // never owns a whatsapp_config row themselves (only Master/Gestor
+    // connect a number) — check my own row first, fall back to my
+    // inviting Gestor's (migration 051 lets an Agente read that row).
     (async () => {
       setWhatsappLoading(true);
-      const [row, health] = await Promise.allSettled([
+      const [ownRow, health] = await Promise.allSettled([
         supabase
           .from('whatsapp_config')
           .select('instance_token')
@@ -109,6 +112,29 @@ export function SettingsOverview({
         fetch('/api/whatsapp/config', { cache: 'no-store' }).then((r) => r.json()),
       ]);
       if (cancelled) return;
+
+      let row = ownRow;
+      if (row.status === 'fulfilled' && !row.value.data) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('invited_by_user_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+        const inviterId = prof?.invited_by_user_id as string | undefined;
+        if (inviterId) {
+          row = await supabase
+            .from('whatsapp_config')
+            .select('instance_token')
+            .eq('user_id', inviterId)
+            .maybeSingle()
+            .then(
+              (r) => ({ status: 'fulfilled', value: r }) as const,
+              (e) => ({ status: 'rejected', reason: e }) as const,
+            );
+        }
+      }
+      if (cancelled) return;
+
       setWhatsapp({
         configured: row.status === 'fulfilled' && !!row.value.data?.instance_token,
         connected: health.status === 'fulfilled' && !!health.value?.connected,

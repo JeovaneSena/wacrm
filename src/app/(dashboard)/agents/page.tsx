@@ -8,11 +8,13 @@ import { AiPlayground } from '@/components/agents/ai-playground';
 import { AiUsageCard } from '@/components/agents/ai-usage';
 import { AiConfig } from '@/components/settings/ai-config';
 import { useAuth } from '@/hooks/use-auth';
+import { useRequireMinRole } from '@/hooks/use-require-min-role';
 import { canEditSettings } from '@/lib/auth/roles';
 
 type Tab = 'playground' | 'setup' | 'usage';
 
 export default function AgentsPage() {
+  useRequireMinRole('admin');
   const t = useTranslations('Agents');
   const { accountRole } = useAuth();
   const canViewUsage = accountRole ? canEditSettings(accountRole) : false;
