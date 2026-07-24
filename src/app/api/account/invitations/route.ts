@@ -170,7 +170,7 @@ export async function GET() {
     // a long-lived account doesn't grow this response unbounded.
     let acceptedQuery = ctx.supabase
       .from("account_invitations")
-      .select("id, role, kind, label, created_at, accepted_at, created_by_user_id")
+      .select("id, role, kind, label, created_at, accepted_at, created_by_user_id, accepted_by_user_id")
       .eq("account_id", ctx.accountId)
       .not("accepted_at", "is", null)
       .order("accepted_at", { ascending: false })
@@ -194,9 +194,36 @@ export async function GET() {
       );
     }
 
+    // 'member' invites: drop from the "accepted" list once the invitee
+    // is no longer actually in this account (removed member) — the
+    // list is meant to reflect the current team, not a permanent
+    // audit log. 'new_account' invites are unaffected: that invitee
+    // was never a member here (they got their own workspace), so
+    // there's no membership to have lost.
+    const acceptedRaw = acceptedRes.data ?? [];
+    const memberInviteeIds = [
+      ...new Set(
+        acceptedRaw
+          .filter((i) => i.kind !== "new_account" && i.accepted_by_user_id)
+          .map((i) => i.accepted_by_user_id as string),
+      ),
+    ];
+    let stillMemberIds = new Set<string>();
+    if (memberInviteeIds.length > 0) {
+      const { data: stillMembers } = await ctx.supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("account_id", ctx.accountId)
+        .in("user_id", memberInviteeIds);
+      stillMemberIds = new Set((stillMembers ?? []).map((p) => p.user_id as string));
+    }
+    const accepted = acceptedRaw.filter(
+      (i) => i.kind === "new_account" || stillMemberIds.has(i.accepted_by_user_id as string),
+    );
+
     return NextResponse.json({
       invitations: pendingRes.data ?? [],
-      accepted: acceptedRes.data ?? [],
+      accepted,
     });
   } catch (err) {
     return toErrorResponse(err);
