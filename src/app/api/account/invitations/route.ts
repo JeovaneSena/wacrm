@@ -168,10 +168,15 @@ export async function GET() {
     // account, so we don't try to resolve a name here — just the
     // invite's own metadata + when it was redeemed. Capped at 20 so
     // a long-lived account doesn't grow this response unbounded.
+    // 'new_account' invites never added anyone to THIS team — accepting
+    // one just authorizes the invitee to spin up their own separate
+    // workspace elsewhere. They don't belong in a "who's on my team"
+    // list, so this query only ever looks at 'member' invites.
     let acceptedQuery = ctx.supabase
       .from("account_invitations")
       .select("id, role, kind, label, created_at, accepted_at, created_by_user_id, accepted_by_user_id")
       .eq("account_id", ctx.accountId)
+      .eq("kind", "member")
       .not("accepted_at", "is", null)
       .order("accepted_at", { ascending: false })
       .limit(20);
@@ -194,18 +199,13 @@ export async function GET() {
       );
     }
 
-    // 'member' invites: drop from the "accepted" list once the invitee
-    // is no longer actually in this account (removed member) — the
-    // list is meant to reflect the current team, not a permanent
-    // audit log. 'new_account' invites are unaffected: that invitee
-    // was never a member here (they got their own workspace), so
-    // there's no membership to have lost.
+    // Drop from the "accepted" list once the invitee is no longer
+    // actually in this account (removed member) — the list is meant
+    // to reflect the current team, not a permanent audit log.
     const acceptedRaw = acceptedRes.data ?? [];
     const memberInviteeIds = [
       ...new Set(
-        acceptedRaw
-          .filter((i) => i.kind !== "new_account" && i.accepted_by_user_id)
-          .map((i) => i.accepted_by_user_id as string),
+        acceptedRaw.filter((i) => i.accepted_by_user_id).map((i) => i.accepted_by_user_id as string),
       ),
     ];
     let stillMemberIds = new Set<string>();
@@ -217,8 +217,8 @@ export async function GET() {
         .in("user_id", memberInviteeIds);
       stillMemberIds = new Set((stillMembers ?? []).map((p) => p.user_id as string));
     }
-    const accepted = acceptedRaw.filter(
-      (i) => i.kind === "new_account" || stillMemberIds.has(i.accepted_by_user_id as string),
+    const accepted = acceptedRaw.filter((i) =>
+      stillMemberIds.has(i.accepted_by_user_id as string),
     );
 
     return NextResponse.json({
