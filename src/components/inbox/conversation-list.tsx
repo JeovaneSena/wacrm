@@ -262,6 +262,28 @@ export function ConversationList({
           )}
         </div>
 
+        {/* Quick-select chips — the 3 filters used every day get a
+            one-click toggle instead of living inside the dropdown. The
+            dropdown right after still covers the rest (unread/open/
+            closed/groups) so nothing is lost, just decluttered. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(["mine", "pending", "all"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setFilter(value)}
+              className={cn(
+                "inline-flex h-7 items-center rounded-full border px-3 text-xs font-medium transition-colors",
+                filter === value
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {FILTER_OPTIONS.find((o) => o.value === value)?.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex flex-wrap items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
