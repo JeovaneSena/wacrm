@@ -3,6 +3,7 @@ import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive'
 import {
   engineSendInteractiveButtons,
   engineSendInteractiveList,
+  resolveConfigForConversation,
 } from '@/lib/flows/meta-send'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
@@ -106,12 +107,8 @@ async function sendViaMeta(input: SendTextArgs): Promise<{ whatsapp_message_id: 
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('server_url, instance_token')
-    .eq('account_id', input.accountId)
-    .single()
-  if (configErr || !config || !config.instance_token) {
+  const config = await resolveConfigForConversation(db, input.accountId, input.conversationId)
+  if (!config || !config.instance_token) {
     throw new Error('WhatsApp not configured for this account')
   }
 

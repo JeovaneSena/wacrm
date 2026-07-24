@@ -110,25 +110,26 @@ export async function POST(request: Request) {
       return fail('bad_request', "'phone' is required", 400);
     }
 
-    const auditUserId = await resolveAuditUserId(ctx.supabase, ctx.accountId);
+    const audit = await resolveAuditUserId(ctx.supabase, ctx.accountId);
 
     const { id, created } = await findOrCreateContact(
       ctx.supabase,
       ctx.accountId,
-      auditUserId,
+      audit.userId,
       {
         phone,
         name: typeof body.name === 'string' ? body.name : undefined,
         email: typeof body.email === 'string' ? body.email : undefined,
         company: typeof body.company === 'string' ? body.company : undefined,
-      }
+      },
+      audit.whatsappConfigId
     );
 
     if (Array.isArray(body.tags)) {
       await setContactTags(
         ctx.supabase,
         ctx.accountId,
-        auditUserId,
+        audit.userId,
         id,
         body.tags.filter((t): t is string => typeof t === 'string')
       );

@@ -31,22 +31,34 @@ export interface ExistingContact {
  * or null. Pre-filters in SQL by the last-8-digit suffix (so we don't
  * pull every contact), then applies the strict `phonesMatch` in JS on
  * the small candidate set — the exact approach the webhook has used.
+ *
+ * `whatsappConfigId`, when passed, additionally scopes the match to
+ * that one WhatsApp connection's silo (a Gestor's own contacts never
+ * match a phone that only exists in another Gestor's) — the webhook
+ * passes its resolved config id. Every other caller (manual add, CSV
+ * import, the public API) omits it and keeps the pre-existing
+ * account-wide match, unchanged.
  */
 export async function findExistingContact(
   db: SupabaseClient,
   accountId: string,
   phone: string,
+  whatsappConfigId?: string | null,
 ): Promise<ExistingContact | null> {
   const normalized = normalizePhone(phone);
   if (!normalized) return null;
 
   const suffix = normalized.length >= 8 ? normalized.slice(-8) : normalized;
 
-  const { data, error } = await db
+  let query = db
     .from("contacts")
     .select("*")
     .eq("account_id", accountId)
     .like("phone", `%${suffix}`);
+  if (whatsappConfigId) {
+    query = query.eq("whatsapp_config_id", whatsappConfigId);
+  }
+  const { data, error } = await query;
 
   if (error || !data) return null;
 

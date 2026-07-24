@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { sendReactionMessage } from '@/lib/whatsapp/uazapi-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
+import { resolveConfigForConversation } from '@/lib/whatsapp/resolve-config';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
 
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
-      .select('id, account_id, contact:contacts(phone)')
+      .select('id, account_id, whatsapp_config_id, contact:contacts(phone)')
       .eq('id', targetMessage.conversation_id)
       .eq('account_id', accountId)
       .maybeSingle();
@@ -108,14 +109,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // WhatsApp config + instance token. Account-scoped post-multi-user.
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('server_url, instance_token')
-      .eq('account_id', accountId)
-      .single();
+    // WhatsApp config + instance token, resolved by the conversation's
+    // owning number (migration 048).
+    const config = await resolveConfigForConversation(
+      supabase,
+      accountId,
+      conversation.whatsapp_config_id,
+    );
 
-    if (configError || !config || !config.instance_token) {
+    if (!config || !config.instance_token) {
       return NextResponse.json(
         { error: 'WhatsApp not configured.' },
         { status: 400 },

@@ -81,11 +81,11 @@ export async function PATCH(
     }
 
     if (Array.isArray(body.tags)) {
-      const auditUserId = await resolveAuditUserId(ctx.supabase, ctx.accountId);
+      const audit = await resolveAuditUserId(ctx.supabase, ctx.accountId);
       await setContactTags(
         ctx.supabase,
         ctx.accountId,
-        auditUserId,
+        audit.userId,
         id,
         body.tags.filter((t): t is string => typeof t === 'string')
       );

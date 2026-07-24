@@ -43,8 +43,8 @@ export async function POST(request: Request) {
 
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('server_url, instance_token')
-      .eq('account_id', accountId)
+      .select('id, server_url, instance_token')
+      .eq('user_id', user.id)
       .maybeSingle()
 
     if (configError || !config || !config.instance_token) {
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
           owner_phone: current.owner || null,
           connected_at: new Date().toISOString(),
         })
-        .eq('account_id', accountId)
+        .eq('id', config.id)
       return NextResponse.json({ status: 'connected', qrcode: null, paircode: null })
     }
 
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     await supabase
       .from('whatsapp_config')
       .update({ status: instance.status })
-      .eq('account_id', accountId)
+      .eq('id', config.id)
 
     return NextResponse.json({
       status: instance.status,

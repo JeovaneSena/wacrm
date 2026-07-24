@@ -53,35 +53,35 @@ export async function resolveConversationByPhone(
     );
   }
 
-  // Fail fast (and create nothing) when the account has no WhatsApp
-  // connected — the same error the send would raise anyway.
-  const { data: config } = await db
-    .from('whatsapp_config')
-    .select('id')
-    .eq('account_id', accountId)
-    .maybeSingle();
-  if (!config) {
-    throw new SendMessageError(
-      'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
-      400
-    );
-  }
-
-  // Audit user for created rows = the single account-wide default used
-  // by every public-API write (see resolveAuditUserId), so a contact
-  // created here is attributed identically to one created via
-  // POST /api/v1/contacts. resolveAuditUserId throws ContactError only
-  // if the owner can't be resolved — remap it to the send error family
-  // the callers already handle.
+  // Audit user + owning number for created rows = the single
+  // account-wide default used by every public-API write (see
+  // resolveAuditUserId), so a contact created here is attributed
+  // identically to one created via POST /api/v1/contacts.
+  // resolveAuditUserId throws ContactError only if the owner can't be
+  // resolved — remap it to the send error family the callers already
+  // handle.
   let ownerUserId: string;
+  let whatsappConfigId: string | null;
   try {
-    ownerUserId = await resolveAuditUserId(db, accountId);
+    const audit = await resolveAuditUserId(db, accountId);
+    ownerUserId = audit.userId;
+    whatsappConfigId = audit.whatsappConfigId;
   } catch (err) {
     if (err instanceof ContactError) {
       throw new SendMessageError('db_error', err.message, err.status);
     }
     throw err;
+  }
+
+  // Fail fast (and create nothing) when Master has no WhatsApp
+  // connected — the same error the send would raise anyway. The public
+  // API always sends as Master's number (see resolveAuditUserId).
+  if (!whatsappConfigId) {
+    throw new SendMessageError(
+      'whatsapp_not_configured',
+      'WhatsApp not configured. Please set up your WhatsApp integration first.',
+      400
+    );
   }
 
   // ---- contact -------------------------------------------------
@@ -103,6 +103,7 @@ export async function resolveConversationByPhone(
       .insert({
         account_id: accountId,
         user_id: ownerUserId,
+        whatsapp_config_id: whatsappConfigId,
         phone: sanitized,
         name: name || sanitized,
       })
@@ -155,6 +156,7 @@ export async function resolveConversationByPhone(
     .insert({
       account_id: accountId,
       user_id: ownerUserId,
+      whatsapp_config_id: whatsappConfigId,
       contact_id: contactId,
     })
     .select('id')

@@ -34,6 +34,7 @@ import {
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
+import { resolveConfigForConversation } from '@/lib/whatsapp/resolve-config';
 
 export const MEDIA_KINDS = ['image', 'video', 'document', 'audio'] as const;
 export const VALID_MESSAGE_TYPES = [
@@ -243,14 +244,15 @@ export async function sendMessageToConversation(
     }
   }
 
-  // WhatsApp config, account-scoped.
-  const { data: config, error: configError } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', accountId)
-    .single();
+  // WhatsApp config — resolved by the CONVERSATION's owning number
+  // (whatsapp_config_id, migration 048), not "the" account config.
+  const config = await resolveConfigForConversation<{
+    id: string;
+    server_url: string;
+    instance_token: string;
+  }>(db, accountId, conversation.whatsapp_config_id, '*');
 
-  if (configError || !config || !config.instance_token) {
+  if (!config || !config.instance_token) {
     throw new SendMessageError(
       'whatsapp_not_configured',
       'WhatsApp not configured. Please set up your WhatsApp integration first.',

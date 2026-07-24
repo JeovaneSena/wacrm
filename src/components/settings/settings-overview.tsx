@@ -55,7 +55,6 @@ export function SettingsOverview({
     let cancelled = false;
     const supabase = createClient();
     const userId = user.id;
-    const acctId = accountId;
 
     // Cheap counts — resolve fast, render immediately.
     (async () => {
@@ -105,7 +104,7 @@ export function SettingsOverview({
         supabase
           .from('whatsapp_config')
           .select('instance_token')
-          .eq('account_id', acctId)
+          .eq('user_id', userId)
           .maybeSingle(),
         fetch('/api/whatsapp/config', { cache: 'no-store' }).then((r) => r.json()),
       ]);

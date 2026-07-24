@@ -59,28 +59,32 @@ export function serializeContact(row: Record<string, unknown>): ApiContact {
   };
 }
 
+export interface AuditResolution {
+  /** Attributed creator — see below for which config this maps to. */
+  userId: string;
+  /** The whatsapp_config row API-created contacts/conversations get
+   *  stamped with, or null if nobody's connected a number yet. */
+  whatsappConfigId: string | null;
+}
+
 /**
- * Resolve the audit `user_id` for API-created rows — the SINGLE source
- * of truth used by every public-API write (contacts, messages,
- * broadcasts, resolve-conversation), so the same key's writes are
- * always attributed to the same human. API callers have no logged-in
- * user, so — like the inbound webhook — we attribute writes to the
- * **WhatsApp config owner** (the webhook's own convention). Contacts
- * can be created before WhatsApp is connected, so we fall back to the
- * account owner when there's no config yet.
+ * Resolve the audit `user_id` (+ owning `whatsapp_config`) for
+ * API-created rows — the SINGLE source of truth used by every
+ * public-API write (contacts, messages, broadcasts,
+ * resolve-conversation), so the same key's writes are always
+ * attributed to the same human and land in the same silo.
+ *
+ * A bare phone number carries no signal about which Gestor's number
+ * it belongs to (unlike the inbound webhook, which resolves a
+ * specific instance token) — the public API has no such context, so
+ * these writes go to the account's Master (owner). Falls back to the
+ * account owner's user_id with no config if nobody's connected a
+ * number yet — contacts can exist before WhatsApp does.
  */
 export async function resolveAuditUserId(
   db: SupabaseClient,
   accountId: string
-): Promise<string> {
-  const { data: config } = await db
-    .from('whatsapp_config')
-    .select('user_id')
-    .eq('account_id', accountId)
-    .maybeSingle();
-  const configOwner = config?.user_id as string | undefined;
-  if (configOwner) return configOwner;
-
+): Promise<AuditResolution> {
   const { data: account } = await db
     .from('accounts')
     .select('owner_user_id')
@@ -90,7 +94,15 @@ export async function resolveAuditUserId(
   if (!owner) {
     throw new ContactError('Account owner could not be resolved', 500);
   }
-  return owner;
+
+  const { data: config } = await db
+    .from('whatsapp_config')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('user_id', owner)
+    .maybeSingle();
+
+  return { userId: owner, whatsappConfigId: (config?.id as string | undefined) ?? null };
 }
 
 export interface ContactInput {
@@ -110,7 +122,8 @@ export async function findOrCreateContact(
   db: SupabaseClient,
   accountId: string,
   auditUserId: string,
-  input: ContactInput
+  input: ContactInput,
+  whatsappConfigId: string | null = null
 ): Promise<{ id: string; created: boolean }> {
   const sanitized = sanitizePhoneForMeta(input.phone);
   if (!isValidE164(sanitized)) {
@@ -128,6 +141,7 @@ export async function findOrCreateContact(
     .insert({
       account_id: accountId,
       user_id: auditUserId,
+      whatsapp_config_id: whatsappConfigId,
       phone: sanitized,
       name: input.name ?? sanitized,
       email: input.email ?? null,

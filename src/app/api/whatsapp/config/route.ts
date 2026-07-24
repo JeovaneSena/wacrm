@@ -89,8 +89,8 @@ export async function GET() {
 
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('server_url, instance_token, instance_id, instance_name, status, owner_phone')
-      .eq('account_id', accountId)
+      .select('id, server_url, instance_token, instance_id, instance_name, status, owner_phone')
+      .eq('user_id', user.id)
       .maybeSingle()
 
     if (configError) {
@@ -144,7 +144,7 @@ export async function GET() {
             owner_phone: instance.owner || null,
             connected_at: connected ? new Date().toISOString() : null,
           })
-          .eq('account_id', accountId)
+          .eq('id', config.id)
       }
 
       return NextResponse.json({
@@ -282,7 +282,7 @@ export async function POST(request: Request) {
     const { data: existing } = await supabase
       .from('whatsapp_config')
       .select('id')
-      .eq('account_id', accountId)
+      .eq('user_id', user.id)
       .maybeSingle()
 
     const connected = instanceStatus === 'connected'
@@ -302,7 +302,7 @@ export async function POST(request: Request) {
       const { error: updateError } = await supabase
         .from('whatsapp_config')
         .update(baseRow)
-        .eq('account_id', accountId)
+        .eq('id', existing.id)
       if (updateError) {
         console.error('Error updating whatsapp_config:', updateError)
         return NextResponse.json({ error: 'Failed to update configuration' }, { status: 500 })
@@ -359,8 +359,8 @@ export async function DELETE() {
 
     const { data: config } = await supabase
       .from('whatsapp_config')
-      .select('server_url, instance_token')
-      .eq('account_id', accountId)
+      .select('id, server_url, instance_token')
+      .eq('user_id', user.id)
       .maybeSingle()
 
     if (config?.instance_token) {
@@ -375,7 +375,7 @@ export async function DELETE() {
     const { error: deleteError } = await supabase
       .from('whatsapp_config')
       .delete()
-      .eq('account_id', accountId)
+      .eq('user_id', user.id)
 
     if (deleteError) {
       console.error('Error deleting whatsapp_config:', deleteError)

@@ -13,6 +13,28 @@ import {
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
 import { supabaseAdmin } from './admin-client'
+import { resolveConfigForConversation as resolveConfig } from '@/lib/whatsapp/resolve-config'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+/**
+ * Resolve the WhatsApp config that owns `conversationId` (migration
+ * 048's per-number model) rather than "the" account config. Thin
+ * wrapper over the shared helper: this file's callers only have a
+ * conversation id on hand, so look up its whatsapp_config_id first.
+ */
+export async function resolveConfigForConversation(
+  db: SupabaseClient,
+  accountId: string,
+  conversationId: string,
+): Promise<{ server_url: string; instance_token: string } | null> {
+  const { data: conv } = await db
+    .from('conversations')
+    .select('whatsapp_config_id')
+    .eq('id', conversationId)
+    .eq('account_id', accountId)
+    .maybeSingle()
+  return resolveConfig(db, accountId, conv?.whatsapp_config_id, 'server_url, instance_token')
+}
 
 // ------------------------------------------------------------
 // Flows-side uazapi sender (text / media / interactive menus).
@@ -74,12 +96,8 @@ export async function engineSendText(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('server_url, instance_token')
-    .eq('account_id', args.accountId)
-    .single()
-  if (configErr || !config || !config.instance_token) {
+  const config = await resolveConfigForConversation(db, args.accountId, args.conversationId)
+  if (!config || !config.instance_token) {
     throw new Error('WhatsApp not configured for this account')
   }
 
@@ -160,12 +178,8 @@ export async function engineSendMedia(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('server_url, instance_token')
-    .eq('account_id', args.accountId)
-    .single()
-  if (configErr || !config || !config.instance_token) {
+  const config = await resolveConfigForConversation(db, args.accountId, args.conversationId)
+  if (!config || !config.instance_token) {
     throw new Error('WhatsApp not configured for this account')
   }
 
@@ -288,12 +302,8 @@ async function sendInteractiveViaUazapi(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('server_url, instance_token')
-    .eq('account_id', input.accountId)
-    .single()
-  if (configErr || !config || !config.instance_token) {
+  const config = await resolveConfigForConversation(db, input.accountId, input.conversationId)
+  if (!config || !config.instance_token) {
     throw new Error('WhatsApp not configured for this account')
   }
 

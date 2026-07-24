@@ -41,8 +41,8 @@ export async function GET() {
 
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('server_url, instance_token')
-      .eq('account_id', accountId)
+      .select('id, server_url, instance_token')
+      .eq('user_id', user.id)
       .maybeSingle()
 
     if (configError || !config || !config.instance_token) {
@@ -60,7 +60,7 @@ export async function GET() {
         owner_phone: instance.owner || null,
         connected_at: connected ? new Date().toISOString() : null,
       })
-      .eq('account_id', accountId)
+      .eq('id', config.id)
 
     return NextResponse.json({
       configured: true,

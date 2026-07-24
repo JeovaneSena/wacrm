@@ -186,12 +186,13 @@ export default function InboxPage() {
 
       if (!user) return;
 
-      // whatsapp_config is one-row-per-account post-multi-user, so
-      // the previous `.eq('user_id', user.id)` would miss the row
-      // for any teammate who didn't personally save the config —
-      // the "WhatsApp not connected" banner would show in the
-      // shared inbox even though the admin had it configured.
-      // Resolve account_id via the profile and query by that.
+      // whatsapp_config is one-row-per-OWNER now (migration 048, the
+      // Master/Gestor/Agente per-number model) — each person's banner
+      // reflects the number THEY own (Gestor) or, for Master, their
+      // own connection. Filtering by account_id alone would break
+      // once an account has more than one config row (RLS lets the
+      // owner see all of them, so `.maybeSingle()` would error on
+      // "more than one row").
       const { data: profile } = await supabase
         .from("profiles")
         .select("account_id")
@@ -206,7 +207,7 @@ export default function InboxPage() {
       const { data } = await supabase
         .from("whatsapp_config")
         .select("status")
-        .eq("account_id", accountId)
+        .eq("user_id", user.id)
         .maybeSingle();
 
       setWhatsappConnected(data?.status === "connected");

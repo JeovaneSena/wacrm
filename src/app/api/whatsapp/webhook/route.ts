@@ -167,7 +167,7 @@ export async function POST(request: Request) {
 
 async function processWebhook(
   body: UazapiWebhookBody,
-  config: { account_id: string; user_id: string; server_url: string; instance_token: string }
+  config: { id: string; account_id: string; user_id: string; server_url: string; instance_token: string }
 ) {
   if (body.EventType === 'connection' && body.instance) {
     const connected = body.instance.status === 'connected'
@@ -178,7 +178,7 @@ async function processWebhook(
         owner_phone: body.instance.owner || null,
         connected_at: connected ? new Date().toISOString() : null,
       })
-      .eq('account_id', config.account_id)
+      .eq('id', config.id)
     return
   }
 
@@ -224,6 +224,7 @@ async function processWebhook(
 async function findOrCreateGroupConversation(
   accountId: string,
   configOwnerUserId: string,
+  whatsappConfigId: string,
   groupJid: string,
   subject: string | null,
   serverUrl: string,
@@ -260,6 +261,7 @@ async function findOrCreateGroupConversation(
     .insert({
       account_id: accountId,
       user_id: configOwnerUserId,
+      whatsapp_config_id: whatsappConfigId,
       contact_id: null,
       chat_type: 'group',
       group_jid: groupJid,
@@ -297,7 +299,7 @@ async function findOrCreateGroupConversation(
 async function processGroupMessage(
   message: UazapiMessage,
   chat: UazapiChat | undefined,
-  config: { account_id: string; user_id: string; server_url: string; instance_token: string }
+  config: { id: string; account_id: string; user_id: string; server_url: string; instance_token: string }
 ) {
   const groupJid = message.chatid
   if (!groupJid) return
@@ -306,6 +308,7 @@ async function processGroupMessage(
   const convResult = await findOrCreateGroupConversation(
     config.account_id,
     config.user_id,
+    config.id,
     groupJid,
     subject,
     config.server_url,
@@ -431,7 +434,7 @@ async function processGroupMessage(
 async function processOutboundEcho(
   message: UazapiMessage,
   chat: UazapiChat | undefined,
-  config: { account_id: string; user_id: string; server_url: string; instance_token: string }
+  config: { id: string; account_id: string; user_id: string; server_url: string; instance_token: string }
 ) {
   // For fromMe events the interesting party is the chat peer —
   // sender_pn is our own number here.
@@ -456,6 +459,7 @@ async function processOutboundEcho(
   const contactOutcome = await findOrCreateContact(
     config.account_id,
     config.user_id,
+    config.id,
     peerPhone,
     contactName,
     config.server_url,
@@ -466,6 +470,7 @@ async function processOutboundEcho(
   const convResult = await findOrCreateConversation(
     config.account_id,
     config.user_id,
+    config.id,
     contactOutcome.contact.id,
   )
   if (!convResult) return
@@ -525,7 +530,7 @@ async function processOutboundEcho(
 async function processMessage(
   message: UazapiMessage,
   chat: UazapiChat | undefined,
-  config: { account_id: string; user_id: string; server_url: string; instance_token: string }
+  config: { id: string; account_id: string; user_id: string; server_url: string; instance_token: string }
 ) {
   const accountId = config.account_id
   const configOwnerUserId = config.user_id
@@ -540,6 +545,7 @@ async function processMessage(
   const contactOutcome = await findOrCreateContact(
     accountId,
     configOwnerUserId,
+    config.id,
     senderPhone,
     contactName,
     config.server_url,
@@ -548,7 +554,7 @@ async function processMessage(
   if (!contactOutcome) return
   const contactRecord = contactOutcome.contact
 
-  const convResult = await findOrCreateConversation(accountId, configOwnerUserId, contactRecord.id)
+  const convResult = await findOrCreateConversation(accountId, configOwnerUserId, config.id, contactRecord.id)
   if (!convResult) return
   const conversation = convResult.conversation
 
@@ -912,12 +918,13 @@ async function tryFetchContactPhoto(
 async function findOrCreateContact(
   accountId: string,
   configOwnerUserId: string,
+  whatsappConfigId: string,
   phone: string,
   name: string,
   serverUrl: string,
   encryptedInstanceToken: string,
 ): Promise<ContactOutcome | null> {
-  const existingContact = await findExistingContact(supabaseAdmin(), accountId, phone)
+  const existingContact = await findExistingContact(supabaseAdmin(), accountId, phone, whatsappConfigId)
 
   if (existingContact) {
     const updates: Record<string, unknown> = {}
@@ -941,6 +948,7 @@ async function findOrCreateContact(
     .insert({
       account_id: accountId,
       user_id: configOwnerUserId,
+      whatsapp_config_id: whatsappConfigId,
       phone,
       name: name || phone,
       avatar_url: avatarUrl,
@@ -950,7 +958,7 @@ async function findOrCreateContact(
 
   if (createError) {
     if (isUniqueViolation(createError)) {
-      const raced = await findExistingContact(supabaseAdmin(), accountId, phone)
+      const raced = await findExistingContact(supabaseAdmin(), accountId, phone, whatsappConfigId)
       if (raced) return { contact: raced, wasCreated: false }
     }
     console.error('Error creating contact:', createError)
@@ -963,6 +971,7 @@ async function findOrCreateContact(
 async function findOrCreateConversation(
   accountId: string,
   configOwnerUserId: string,
+  whatsappConfigId: string,
   contactId: string,
 ) {
   const { data: existing } = await supabaseAdmin()
@@ -978,7 +987,12 @@ async function findOrCreateConversation(
 
   const { data: newConv, error: createError } = await supabaseAdmin()
     .from('conversations')
-    .insert({ account_id: accountId, user_id: configOwnerUserId, contact_id: contactId })
+    .insert({
+      account_id: accountId,
+      user_id: configOwnerUserId,
+      whatsapp_config_id: whatsappConfigId,
+      contact_id: contactId,
+    })
     .select()
     .single()
 
