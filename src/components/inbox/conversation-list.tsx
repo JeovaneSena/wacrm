@@ -9,7 +9,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, SquarePen, Users, BellOff } from "lucide-react";
+import { Search, ChevronDown, X, SquarePen, Users, BellOff, UserRound } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useTranslations } from "next-intl";
@@ -141,6 +141,26 @@ export function ConversationList({
     };
   }, []);
 
+  // Assignee names for the per-row "who's on this" label — a lightweight
+  // id→name map, not the full profiles rows the assign dropdowns need.
+  const [assigneeNames, setAssigneeNames] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("profiles").select("user_id, full_name, email");
+      if (cancelled || !data) return;
+      const map = new Map<string, string>();
+      for (const p of data as { user_id: string; full_name: string | null; email: string | null }[]) {
+        map.set(p.user_id, p.full_name || p.email || "");
+      }
+      setAssigneeNames(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Company options are derived from the loaded conversations — there's no
   // separate companies table, and only companies with a live conversation
   // are worth offering as an inbox filter.
@@ -263,9 +283,9 @@ export function ConversationList({
         </div>
 
         {/* Quick-select chips — the 3 filters used every day get a
-            one-click toggle instead of living inside the dropdown. The
-            dropdown right after still covers the rest (unread/open/
-            closed/groups) so nothing is lost, just decluttered. */}
+            one-click toggle instead of living inside the dropdown.
+            The dropdown sits right alongside for the rest (unread/
+            open/closed/groups) so nothing is lost, just decluttered. */}
         <div className="flex flex-wrap items-center gap-1.5">
           {(["mine", "pending", "all"] as const).map((value) => (
             <button
@@ -282,12 +302,13 @@ export function ConversationList({
               {FILTER_OPTIONS.find((o) => o.value === value)?.label}
             </button>
           ))}
-        </div>
 
-        <div className="flex flex-wrap items-center gap-1">
+          {/* Only surfaces a label when the active filter is one of the
+              "more" options (unread/open/closed/groups) — otherwise it's
+              redundant with whichever quick chip is already highlighted. */}
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
-                {activeFilter?.label ?? t("filterAll")}
+                {["mine", "pending", "all"].includes(filter) ? null : activeFilter?.label}
                 <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -310,7 +331,9 @@ export function ConversationList({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-1">
           {tags.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -462,6 +485,9 @@ export function ConversationList({
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
                 t={t}
+                assigneeName={
+                  conv.assigned_agent_id ? assigneeNames.get(conv.assigned_agent_id) : undefined
+                }
               />
             ))}
           </div>
@@ -476,11 +502,16 @@ interface ConversationItemProps {
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
   t: ReturnType<typeof useTranslations>;
+  /** Resolved name of whoever `conversation.assigned_agent_id` points
+   *  to, if assigned. Undefined when unassigned or the name lookup
+   *  hasn't landed yet. */
+  assigneeName?: string;
 }
 
 function ConversationItem({
   conversation,
   isActive,
+  assigneeName,
   onSelect,
   t,
 }: ConversationItemProps) {
@@ -549,6 +580,12 @@ function ConversationItem({
             {timeAgo}
           </span>
         </div>
+        {assigneeName && (
+          <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-muted-foreground">
+            <UserRound className="h-2.5 w-2.5 shrink-0" />
+            {assigneeName}
+          </p>
+        )}
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p
             className={cn(
