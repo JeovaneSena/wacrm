@@ -37,9 +37,11 @@ interface ConversationListProps {
   resyncToken?: number;
   /** When provided, renders a new-conversation button in the header. */
   onNewConversation?: () => void;
+  /** Logged-in user id — drives the "Minhas" (assigned to me) filter. */
+  currentUserId?: string | null;
 }
 
-type InboxFilter = ConversationStatus | "all" | "unread" | "groups";
+type InboxFilter = ConversationStatus | "all" | "unread" | "mine" | "groups";
 
 export function ConversationList({
   activeConversationId,
@@ -48,11 +50,13 @@ export function ConversationList({
   onConversationsLoaded,
   resyncToken = 0,
   onNewConversation,
+  currentUserId = null,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
-  
+
   const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = useMemo(() => [
     { label: t("filterAll"), value: "all" },
+    { label: t("filterMine"), value: "mine" },
     { label: t("filterUnread"), value: "unread" },
     { label: t("filterOpen"), value: "open" },
     { label: t("filterPending"), value: "pending" },
@@ -160,6 +164,8 @@ export function ConversationList({
 
     if (filter === "unread") {
       result = result.filter((c) => c.unread_count > 0);
+    } else if (filter === "mine") {
+      result = result.filter((c) => c.assigned_agent_id === currentUserId);
     } else if (filter === "groups") {
       result = result.filter((c) => c.chat_type === "group");
     } else if (filter !== "all") {
@@ -195,7 +201,7 @@ export function ConversationList({
       const tb = new Date(b.last_message_at ?? b.created_at).getTime();
       return tb - ta;
     });
-  }, [conversations, filter, search, selectedTagIds, selectedCompany]);
+  }, [conversations, filter, search, selectedTagIds, selectedCompany, currentUserId]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>

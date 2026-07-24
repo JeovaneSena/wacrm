@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { usePresence } from "@/hooks/use-presence";
+import { PresenceDot } from "@/components/presence/presence-dot";
+import { presenceLabel } from "@/lib/presence";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type {
   Contact,
@@ -11,6 +15,7 @@ import type {
   Deal,
   ContactNote,
   PipelineStage,
+  Profile,
   Tag,
 } from "@/types";
 import {
@@ -26,6 +31,8 @@ import {
   StickyNote,
   Plus,
   Users as UsersIcon,
+  UserPlus,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -45,14 +52,21 @@ interface ContactSidebarProps {
   /** Passed so the sidebar can tell "no conversation selected" apart
    *  from "a group conversation is selected" — both have contact=null. */
   conversation?: Conversation | null;
+  /** Mirrors message-thread.tsx's own callback — keeps the page's
+   *  conversation state (and therefore the "Minhas" filter/list) in
+   *  sync when the assignment changes from here instead of the
+   *  thread header's dropdown. */
+  onAssignChange?: (conversationId: string, agentId: string | null) => void;
 }
 
-export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
+export function ContactSidebar({ contact, conversation, onAssignChange }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
   const isGroup = conversation?.chat_type === "group";
 
   const { accountId } = useAuth();
+  const { getPresence, getRow, now } = usePresence();
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -71,6 +85,46 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
   const [dealFormOpen, setDealFormOpen] = useState(false);
   const [pipelineId, setPipelineId] = useState<string>("");
   const [stages, setStages] = useState<PipelineStage[]>([]);
+
+  // Team roster for the "Responsável" assign/transfer dropdown — same
+  // simple query message-thread.tsx's own assign dropdown uses.
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("profiles")
+      .select("*")
+      .order("full_name")
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Failed to fetch profiles:", error);
+          return;
+        }
+        setProfiles((data as Profile[]) ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleAssignChange = useCallback(
+    async (agentId: string | null) => {
+      if (!conversation) return;
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("conversations")
+        .update({ assigned_agent_id: agentId })
+        .eq("id", conversation.id);
+      if (error) {
+        console.error("Failed to update assignment:", error);
+        toast.error(tThread("failedAssign"));
+        return;
+      }
+      onAssignChange?.(conversation.id, agentId);
+    },
+    [conversation, onAssignChange, tThread],
+  );
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -337,6 +391,75 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
                 </div>
               ))}
           </div>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Responsável — who owns this conversation, with a
+              transfer control. Same assign/unassign logic as the
+              thread header's dropdown, just surfaced here too so it's
+              visible without opening that menu. */}
+          {conversation && (
+            <div>
+              <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <UserPlus className="h-3 w-3" />
+                <span>{tSidebar("assignedTo")}</span>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className={cn(
+                    "mt-1.5 flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm hover:bg-muted",
+                    conversation.assigned_agent_id ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  <span className="truncate">
+                    {conversation.assigned_agent_id
+                      ? (profiles.find((p) => p.user_id === conversation.assigned_agent_id)
+                          ?.full_name ?? tThread("assigned"))
+                      : tSidebar("unassigned")}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56 border-border bg-popover">
+                  {profiles.length === 0 ? (
+                    <DropdownMenuItem disabled className="text-sm text-muted-foreground">
+                      {tThread("noTeammates")}
+                    </DropdownMenuItem>
+                  ) : (
+                    profiles.map((p) => {
+                      const isSelected = p.user_id === conversation.assigned_agent_id;
+                      const presence = getPresence(p.user_id);
+                      return (
+                        <DropdownMenuItem
+                          key={p.id}
+                          onClick={() => handleAssignChange(p.user_id)}
+                          className={cn(
+                            "gap-2 text-sm",
+                            isSelected ? "text-primary" : "text-popover-foreground",
+                          )}
+                        >
+                          <PresenceDot
+                            status={presence}
+                            label={presenceLabel(presence, getRow(p.user_id)?.last_seen_at ?? null, now)}
+                          />
+                          <span className="flex-1 truncate">{p.full_name || p.email}</span>
+                          {isSelected && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                      );
+                    })
+                  )}
+                  {conversation.assigned_agent_id && (
+                    <DropdownMenuItem
+                      onClick={() => handleAssignChange(null)}
+                      className="text-sm text-muted-foreground"
+                    >
+                      {tThread("unassign")}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />

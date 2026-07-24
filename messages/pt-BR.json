@@ -158,6 +158,7 @@
     "conversationList": {
       "searchPlaceholder": "Buscar conversas...",
       "filterAll": "Todas",
+      "filterMine": "Minhas",
       "filterUnread": "Não lidas",
       "filterOpen": "Abertas",
       "filterPending": "Pendentes",
@@ -292,6 +293,8 @@
     },
     "sidebar": {
       "contactInfo": "Informações do contato",
+      "assignedTo": "Responsável",
+      "unassigned": "Sem responsável",
       "tags": "Etiquetas",
       "notes": "Notas",
       "deals": "Negócios",

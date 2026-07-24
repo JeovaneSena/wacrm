@@ -15,6 +15,7 @@ import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { NewConversationDialog } from "@/components/inbox/new-conversation-dialog";
 import { useCan } from "@/hooks/use-can";
+import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ const LAST_CONVERSATION_STORAGE_KEY = "senacrm:inbox:last-conversation";
 
 export default function InboxPage() {
   const t = useTranslations("Inbox.page");
+  const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   /**
@@ -651,6 +653,7 @@ export default function InboxPage() {
             onConversationsLoaded={handleConversationsLoaded}
             resyncToken={resyncToken}
             onNewConversation={canSend ? () => setNewConvOpen(true) : undefined}
+            currentUserId={user?.id ?? null}
           />
         </div>
 
@@ -694,7 +697,11 @@ export default function InboxPage() {
             toggle — which is itself desktop-only — never affects it. */}
         {contactPanelOpen && (
           <div className="hidden lg:block">
-            <ContactSidebar contact={activeContact} conversation={activeConversation} />
+            <ContactSidebar
+              contact={activeContact}
+              conversation={activeConversation}
+              onAssignChange={handleAssignChange}
+            />
           </div>
         )}
       </div>

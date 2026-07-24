@@ -158,6 +158,7 @@
     "conversationList": {
       "searchPlaceholder": "Search conversations...",
       "filterAll": "All",
+      "filterMine": "Mine",
       "filterUnread": "Unread",
       "filterOpen": "Open",
       "filterPending": "Pending",
@@ -292,6 +293,8 @@
     },
     "sidebar": {
       "contactInfo": "Contact info",
+      "assignedTo": "Assigned to",
+      "unassigned": "Unassigned",
       "tags": "Tags",
       "notes": "Notes",
       "deals": "Deals",
